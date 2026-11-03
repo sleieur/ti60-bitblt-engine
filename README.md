@@ -7,8 +7,8 @@
   <img alt="Tool" src="https://img.shields.io/badge/Tool-Efinity%202023.2%2B-orange?style=flat-square">
   <img alt="RTL" src="https://img.shields.io/badge/RTL-Verilog-8a63d2?style=flat-square">
   <img alt="Status" src="https://img.shields.io/badge/Status-on%20hardware%20verified-brightgreen?style=flat-square">
-  <a href="../../actions/workflows/ci.yml"><img alt="sanity" src="../../actions/workflows/ci.yml/badge.svg"></a>
-  <a href="../../releases"><img alt="releases" src="https://img.shields.io/github/v/release/sleieur/ti60-bitblt-engine?style=flat-square&color=blueviolet"></a>
+  <a href="https://github.com/sleieur/ti60-bitblt-engine/actions/workflows/ci.yml"><img alt="sanity" src="https://github.com/sleieur/ti60-bitblt-engine/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/sleieur/ti60-bitblt-engine/releases"><img alt="releases" src="https://img.shields.io/github/v/release/sleieur/ti60-bitblt-engine?style=flat-square&color=blueviolet"></a>
 </p>
 
 > **2026 易灵思 FPGA 创新设计赛道参赛作品**
@@ -50,6 +50,8 @@ flowchart LR
 ```
 
 ## 实测指标
+
+![性能对比](docs/fig_perf.png)
 
 | 操作（整屏 1280×720） | 引擎耗时 | 等效带宽 |
 |---|---:|---:|
