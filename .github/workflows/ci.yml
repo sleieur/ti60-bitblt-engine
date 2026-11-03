@@ -1,0 +1,40 @@
+name: sanity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 语法检查（主机侧工具链）
+        run: |
+          python3 -m compileall -q embedded_sw/bbShow/tools docs/gen_doc.py docs/gen_fig.py
+
+      - name: RTL 文件完整性
+        run: |
+          test -f rtl/ddr3_example_top.v
+          for m in bitblt_core bitblt_sched bitblt_pix bb_fifo; do
+            test -f "rtl/bitblt/$m.v"
+          done
+          echo "模块数: $(find rtl -name '*.v' | wc -l)"
+          echo "固件源文件数: $(find embedded_sw/bbShow/src -name '*.c' -o -name '*.h' | wc -l)"
+
+      - name: Verilog 语法检查（有 iverilog 时）
+        run: |
+          if command -v iverilog >/dev/null; then
+            iverilog -g2012 -o /tmp/top.out -y rtl -y rtl/bitblt -y rtl/common \
+              -y rtl/fb -y rtl/hdmi rtl/ddr3_example_top.v && echo "iverilog OK"
+          else
+            echo "iverilog 未安装，跳过（工程以 Efinity 综合结果为准）"
+          fi
+
+      - name: 文档与截图存在性
+        run: |
+          ls -la docs/*.docx docs/fig_arch.png docs/fig_datapath.png
+          ls docs/shot_*.jpg | wc -l
