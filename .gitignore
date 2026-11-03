@@ -1,0 +1,31 @@
+# Efinity / build output
+*.qdb
+*.qws
+outflow/*
+!par/ddr_demo_ti60/outflow/ddr_demo_ti60.bit
+!par/ddr_demo_ti60/outflow/ddr_demo_ti60.hex
+work_*/
+*.log
+*.rpt
+
+# RISC-V build intermediates
+*.o
+*.d
+*.map
+*.asm
+!embedded_sw/bbShow/build/*.map
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Host-side scratch
+*.ppm
+tools/verify_out/

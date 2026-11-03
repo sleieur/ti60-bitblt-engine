@@ -1,0 +1,26 @@
+# Normalise text files, never touch binaries
+* text=auto eol=lf
+
+*.v      text eol=lf
+*.vh     text eol=lf
+*.sv     text eol=lf
+*.c      text eol=lf
+*.h      text eol=lf
+*.py     text eol=lf
+*.ps1    text eol=lf
+*.md     text eol=lf
+*.xml    text eol=lf
+*.sdc    text eol=lf
+*.json   text eol=lf
+
+# Bitstreams, images, archives, Word documents and tool binaries are opaque
+*.bit    binary
+*.bin    binary
+*.hex    binary
+*.elf    binary
+*.docx   binary
+*.jpg    binary
+*.png    binary
+*.zip    binary
+*.pdf    binary
+*.qdb    binary
