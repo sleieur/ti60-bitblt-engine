@@ -389,8 +389,11 @@ Spr G_BLADE;
 Spr G_HERO[2];
 Spr G_ZOMB[3];
 Spr G_ZOMB_HIT[3];
+Spr G_MARK;
 Spr G_KNIFE;
-Spr G_SHOOT;
+Spr G_SHOOT[2];
+Spr G_LASER;
+Spr G_BOLT;
 Spr G_GROUND;
 Spr G_STREAK[2];
 Spr G_BLOOM[2];
@@ -1144,9 +1147,26 @@ static void build_zombies(void)
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++) {
                 uint16_t c = A(s->addr)[(uint32_t)y * (s->stride / 2) + x];
-                if (c != MAG) pset(&G_ZOMB_HIT[k], x, y, 0xFFFFu);
+                if (c != MAG) pset(&G_ZOMB_HIT[k], x, y, 0xDEFBu);
             }
     }
+}
+
+static void build_mark(void)
+{
+    /* Pool of light on the ground under the hero.  In a horde of 600 bodies the
+     * character disappears; a bright ellipse on the floor is how the genre keeps
+     * him findable, and it reads as a spotlight rather than as an outline. */
+    Spr *s = &G_MARK;
+    *s = spr_new(64, 26, MAG);
+    for (int y = 0; y < 26; y++)
+        for (int x = 0; x < 64; x++) {
+            int dx = (x - 32) * 100 / 32, dy = (y - 13) * 100 / 13;
+            int d2 = dx * dx + dy * dy;
+            if (d2 > 10000) continue;
+            if (d2 > 6400 && ((x + y) & 1)) continue;
+            pset(s, x, y, d2 > 6400 ? 0x39E7u : 0x7BEFu);
+        }
 }
 
 static void build_weapons(void)
@@ -1154,28 +1174,71 @@ static void build_weapons(void)
     /* knife: blade + guard + handle, drawn vertical so the orbit needs no maths */
     {
         Spr *s = &G_KNIFE;
-        *s = spr_new(12, 28, MAG);
-        for (int y = 1; y < 18; y++)
-            for (int x = 4; x < 9; x++) {
-                int taper = x - 4 + (y < 4 ? (4 - y) * 2 : 0);
-                if (taper > 4) continue;
-                pset(s, x, y, x < 6 ? 0xE7FFu : 0x9CF3u);
+        *s = spr_new(18, 42, MAG);
+        for (int y = 1; y < 28; y++)
+            for (int x = 5; x < 13; x++) {
+                int taper = (x - 5) * 2 + (y < 6 ? (6 - y) * 3 : 0);
+                if (taper > 12) continue;
+                /* bright edge, steel body, dark spine: three tones make a blade
+                 * read at a glance even while it is moving */
+                uint16_t c = (x < 8) ? 0xFFFFu : (x < 11 ? 0xAFFFu : 0x7BEFu);
+                if (y < 5) c = 0xFFFFu;
+                pset(s, x, y, c);
             }
-        for (int x = 2; x < 10; x++) pset(s, x, 18, 0xFC60u);
-        for (int y = 19; y < 26; y++)
-            for (int x = 5; x < 8; x++) pset(s, x, y, 0x39E7u);
+        for (int x = 2; x < 16; x++) pset(s, x, 28, 0xFE60u);
+        for (int x = 3; x < 15; x++) pset(s, x, 29, 0xFC00u);
+        for (int y = 30; y < 39; y++)
+            for (int x = 7; x < 11; x++) pset(s, x, y, (x < 9) ? 0x5AEBu : 0x39E7u);
         arcade(s, 1);
     }
     /* bullet: a short tracer, wide enough to see at speed */
-    {
-        Spr *s = &G_SHOOT;
-        *s = spr_new(8, 8, MAG);
-        for (int y = 0; y < 8; y++)
-            for (int x = 0; x < 8; x++) {
-                int dx = x - 3, dy = y - 3;
-                if (dx * dx + dy * dy > 9) continue;
-                pset(s, x, y, dx * dx + dy * dy < 3 ? 0xFFFFu : 0xFFE0u);
+    for (int k = 0; k < 2; k++) {
+        Spr *s = &G_SHOOT[k];
+        int n = k ? 10 : 8;
+        *s = spr_new(n, n, MAG);
+        int c = n / 2;
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++) {
+                int dx = x - c, dy = y - c;
+                int d2 = dx * dx + dy * dy;
+                if (d2 > c * c) continue;
+                /* the gatling round is white-hot with a cyan rim, so a stream of
+                 * them reads as a different weapon from the pistol's amber ball */
+                pset(s, x, y, d2 < 4 ? 0xFFFFu
+                      : (k ? (d2 < 12 ? 0x9FFFu : 0x05FFu) : (d2 < 12 ? 0xFFE0u : 0xFE60u)));
             }
+    }
+    /* laser column: bright core, soft edges, dotted fade at the top so it does
+     * not end in a hard line at the screen border */
+    {
+        Spr *s = &G_LASER;
+        *s = spr_new(20, 300, MAG);
+        for (int y = 0; y < 300; y++)
+            for (int x = 0; x < 20; x++) {
+                int dx = x - 10;
+                int a = dx < 0 ? -dx : dx;
+                if (a > 9) continue;
+                uint16_t c = a < 3 ? 0xFFFFu : (a < 6 ? 0x9FFFu : 0x05FFu);
+                if (y < 40 && ((x + y) & 1)) continue;      /* fade at the source */
+                pset(s, x, y, c);
+            }
+    }
+    /* lightning bolt: a jagged column, drawn once per strike */
+    {
+        Spr *s = &G_BOLT;
+        *s = spr_new(24, 240, MAG);
+        int x = 12;
+        for (int y = 0; y < 240; y++) {
+            /* walk sideways with a hash, so the bolt is jagged but repeatable */
+            if ((y & 15) == 0) x += ((y * 37) % 7) - 3;
+            if (x < 4) x = 4;
+            if (x > 19) x = 19;
+            int w = (y % 24 < 3) ? 3 : 2;
+            for (int k2 = 0; k2 < w; k2++) {
+                pset(s, x + k2, y, k2 ? 0x07FFu : 0xFFFFu);
+                pset(s, x + k2 + 1, y, 0x05FFu);
+            }
+        }
     }
 }
 
@@ -1202,6 +1265,12 @@ static void build_ground(void)
             int g = 6 + n / 12;
             int r = 3 + n / 26;
             int bl = 2 + n / 40;
+            /* Large-scale biome: patches of drier and lusher ground at a scale of
+             * ~300 px.  One flat green field is what made the map look like a
+             * test harness no matter how much noise went into it. */
+            int bio = onoise(x / 4, y / 4, 200, 0x3C9Fu);
+            if (bio > 150)      { r += 3; g += 2; }               /* dry */
+            else if (bio < 70)  { g += 3; bl += 1; }              /* lush */
             /* One road that curves across the map.  Two things to get right:
              * a modulo band tiles into parallel highways, and a per-cell hash
              * gives a jagged stripe - so the curve is a plain parabola, which
@@ -1214,9 +1283,9 @@ static void build_ground(void)
                 /* dirt in 565 units: 40 in the red field would clamp to full red
                  * and turn the road salmon-pink */
                 int k2 = 255 - d * 5;
-                r = (r * (255 - k2) + 11 * k2) / 255;
-                g = (g * (255 - k2) + 9 * k2) / 255;
-                bl = (bl * (255 - k2) + 6 * k2) / 255;
+                r = (r * (255 - k2) + 9 * k2) / 255;
+                g = (g * (255 - k2) + 8 * k2) / 255;
+                bl = (bl * (255 - k2) + 5 * k2) / 255;
             }
             uint16_t c = (uint16_t)(((r > 31 ? 31 : r) << 11) |
                                     ((g > 63 ? 63 : g) << 5) |
@@ -1224,6 +1293,27 @@ static void build_ground(void)
             b[y * st + x] = c;
         }
     }
+    /* Two bare-earth patches instead of ponds.  Water in RGB565 next to dark olive
+     * grass always comes out as a neon puddle; a patch of turned soil is the same
+     * visual break with none of the colour risk. */
+    {
+        static const int PX[2] = { 380, 1120 }, PY[2] = { 250, 640 };
+        static const int PR[2] = { 96, 74 };
+        for (int p = 0; p < 2; p++)
+            for (int y = PY[p] - PR[p]; y <= PY[p] + PR[p]; y++)
+                for (int x = PX[p] - PR[p] * 2; x <= PX[p] + PR[p] * 2; x++) {
+                    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+                    int dx = (x - PX[p]) * 100 / (PR[p] * 2), dy = (y - PY[p]) * 100 / PR[p];
+                    int d2 = dx * dx + dy * dy;
+                    if (d2 > 10000) continue;
+                    int n2 = onoise(x, y, 12, 0x2B71u);
+                    int r2 = 7 + n2 / 22, g2 = 6 + n2 / 26, b2 = 3 + n2 / 40;
+                    if (d2 > 8100 && ((x + y) & 1)) continue;      /* ragged edge */
+                    b[(uint32_t)y * st + x] = (uint16_t)(((r2 > 31 ? 31 : r2) << 11) |
+                                                         ((g2 > 63 ? 63 : g2) << 5) | b2);
+                }
+    }
+
     /* stones and tufts, placed by hash so the pattern is stable across builds */
     uint32_t h = 0x1234567u;
     for (int i = 0; i < 1600; i++) {
@@ -1288,6 +1378,7 @@ void art_build(void)
     build_swarm();
     build_hero();
     build_zombies();
+    build_mark();
     build_weapons();
     build_ground();
     build_ui_texture();

@@ -81,8 +81,11 @@ extern Spr G_BLADE;         /* orbiting aura blade     */
 extern Spr G_HERO[2];       /* idle / hit              */
 extern Spr G_ZOMB[3];
 extern Spr G_ZOMB_HIT[3];
+extern Spr G_MARK;          /* light pool under the hero */
 extern Spr G_KNIFE;         /* melee, orbits the player */
-extern Spr G_SHOOT;         /* gun bullet              */
+extern Spr G_SHOOT[2];      /* 0 pistol round, 1 gatling tracer */
+extern Spr G_LASER;         /* vertical energy column  */
+extern Spr G_BOLT;          /* lightning strike        */
 extern Spr G_GROUND;        /* 1536x864 baked map      */
 
 /* Hand-painted pack (RUOK / Kenney, CC0) vs the procedural art.

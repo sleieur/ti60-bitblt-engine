@@ -546,61 +546,68 @@ static void summary_hw(void)
 
 /* ================================================== survivors stress test === */
 /*
- * Scene 8, second design.  The first attempt failed for reasons that are worth
- * writing down, because each one is a genre rule rather than a taste:
+ * Scene 8.  Everything here is a BitBlt task; the frame budget it consumes is the
+ * measurement, the game is just what makes the number watchable.
  *
- *   - a pure top-down view of a character reads as a flat disc.  Survivors-likes
- *     are drawn in a fake-3D (oblique) projection: you see the character's front
- *     and a little of its top, and it stands on a shadow.  Without that, no
- *     amount of shading helps.
- *   - enemies must come from the map, not from a ring around the player, or the
- *     field looks like the player is dragging them.
- *   - the ground has to exist.  An empty starfield makes every sprite look like
- *     it is floating in a vacuum.
- *   - the player carries a melee weapon that orbits and a gun that fires, because
- *     that is the silhouette of the genre: you read the build from the weapons.
+ * Design rules that came out of the first two attempts (each one cost a rebuild
+ * because the picture was wrong, not the numbers):
  *
- * Everything is still BitBlt work - the stress measurement is unchanged, only
- * the picture it is wearing.
+ *   - oblique projection, not top-down: a top-down character is a disc.
+ *   - the map has to exist and has to change: one flat green field reads as a
+ *     test harness, and a repeating road reads as a bug.
+ *   - enemies spawn on the map border and walk in.  Spawning around the player
+ *     makes the player look like he is dragging them.
+ *   - size and speed are married: the big ones are slow.  If everything walks at
+ *     the same pace the player is always inside a wall of bodies and nothing can
+ *     be seen - neither the bullets nor the blade.
+ *   - weapons are drawn last.  They are the thing the eye follows, and a knife
+ *     hidden behind a zombie looks like a bug.
+ *   - the arsenal grows with the stage.  That is both the genre's progression and
+ *     the stress curve: more tasks per frame, in a way the viewer understands.
  */
-#define VS_FOE_MAX   700
-#define VS_BUL_MAX    64
-#define VS_GEM_MAX   100
+#define VS_FOE_MAX   660
+#define VS_BUL_MAX    56
+#define VS_GEM_MAX    72
+#define VS_WPN_MAX     8           /* beams and bolts alive at once */
 
-#define VS_WALK_SPD    3
 #define VS_STAGE_FRAMES 270        /* 4.5 s at 60 fps */
 
 typedef struct { int16_t x, y; int8_t vx, vy; uint8_t hp, kind, flash; } vs_foe_t;
-typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl, pad; } vs_bul_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl, kind; } vs_bul_t;
 typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl, pad; } vs_gem_t;
+/* a vertical beam or bolt: no rotation in the engine, so energy weapons are
+ * drawn as columns.  kind 0 = laser, 1 = lightning */
+typedef struct { int16_t x, y; uint8_t ttl, kind; } vs_wpn_t;
 
 static vs_foe_t vs_foe[VS_FOE_MAX];
 static vs_bul_t vs_bul[VS_BUL_MAX];
 static vs_gem_t vs_gem[VS_GEM_MAX];
+static vs_wpn_t vs_wpn[VS_WPN_MAX];
 
-static int      vs_foe_n, vs_bul_n, vs_gem_n;
+static int      vs_foe_n, vs_bul_n, vs_gem_n, vs_wpn_n;
 static int      vs_stage, vs_kill, vs_frame, vs_acc;
 static int      vs_px, vs_py, vs_ph, vs_flash;
 static int      vs_cam_x, vs_cam_y;
-static int      vs_best;
-static int      vs_banner;
-static int      vs_gun_cd, vs_knife_a;
+static int      vs_best, vs_banner;
+static int      vs_gun_cd, vs_laser_cd, vs_bolt_cd, vs_knife_a;
 static int16_t  vs_cs[64], vs_sn[64];
 
 /* spawn budget per second, index = stage - 1 */
-static const uint16_t vs_rate[6] = { 26, 52, 96, 168, 270, 380 };
-/* live ceiling per stage: the last one is above what the engine can draw, so the
- * frame rate really does fall at the end */
-static const uint16_t vs_cap[6]  = { 80, 160, 280, 420, 560, 700 };
+static const uint16_t vs_rate[6] = { 30, 60, 110, 190, 300, 430 };
+/* live ceiling per stage: the last two are above what the engine can draw, so
+ * the frame rate really does fall before the run ends */
+static const uint16_t vs_cap[6]  = { 80, 150, 260, 380, 520, 660 };
+
+/* movement speed by kind: green grunt is quick, the big orange brute is slow */
+static const int8_t   vs_spd[3]  = { 2, 1, 2 };
 
 static int vs_ilen(int x, int y)
 {
     int ax = x < 0 ? -x : x, ay = y < 0 ? -y : y, r = 0, v = ax > ay ? ax : ay;
-    while (v > 0) { v >>= 2; r += v; }          /* cheap sqrt, 1% error is fine */
+    while (v > 0) { v >>= 2; r += v; }
     return r ? r : 1;
 }
 
-/* Direction from (x,y) toward the player, scaled to `spd`. */
 static void vs_aim(vs_foe_t *f, int spd)
 {
     int dx = vs_px - f->x, dy = vs_py - f->y;
@@ -614,10 +621,10 @@ static void vs_place_at_edge(vs_foe_t *f)
 {
     int per = (SCREEN_W + SCREEN_H) * 2;
     int q = rnd(0, per - 1);
-    if (q < SCREEN_W)                          { f->x = (int16_t)q;              f->y = -30; }
-    else if (q < SCREEN_W + SCREEN_H)          { f->x = SCREEN_W + 30;          f->y = (int16_t)(q - SCREEN_W); }
-    else if (q < SCREEN_W * 2 + SCREEN_H)      { f->x = (int16_t)(q - SCREEN_W - SCREEN_H); f->y = SCREEN_H + 30; }
-    else                                       { f->x = -30;                     f->y = (int16_t)(q - SCREEN_W * 2 - SCREEN_H); }
+    if (q < SCREEN_W)                     { f->x = (int16_t)q;              f->y = -30; }
+    else if (q < SCREEN_W + SCREEN_H)     { f->x = SCREEN_W + 30;          f->y = (int16_t)(q - SCREEN_W); }
+    else if (q < SCREEN_W * 2 + SCREEN_H) { f->x = (int16_t)(q - SCREEN_W - SCREEN_H); f->y = SCREEN_H + 30; }
+    else                                  { f->x = -30;                     f->y = (int16_t)(q - SCREEN_W * 2 - SCREEN_H); }
 }
 
 static void vs_spawn(int n)
@@ -628,9 +635,9 @@ static void vs_spawn(int n)
         vs_place_at_edge(f);
         f->flash = 0;
         int roll = rnd(0, 99);
-        f->kind = (uint8_t)(vs_stage >= 3 && roll < 18 ? 2 : (vs_stage >= 2 && roll < 45 ? 1 : 0));
-        f->hp = (uint8_t)(f->kind == 2 ? 6 : (f->kind == 1 ? 3 : 1));
-        vs_aim(f, VS_WALK_SPD);
+        f->kind = (uint8_t)(vs_stage >= 3 && roll < 20 ? 1 : (vs_stage >= 2 && roll < 50 ? 2 : 0));
+        f->hp = (uint8_t)(f->kind == 1 ? 8 : (f->kind == 2 ? 4 : 1));
+        vs_aim(f, vs_spd[f->kind]);
     }
 }
 
@@ -644,7 +651,33 @@ static void vs_kill_at(int i)
         g->ttl = 200;
     }
     vs_kill++;
-    vs_foe[i] = vs_foe[--vs_foe_n];             /* swap-remove, live range stays packed */
+    vs_foe[i] = vs_foe[--vs_foe_n];
+}
+
+/* ---- arsenal -------------------------------------------------------------
+ * stage 1  pistol         one aimed round
+ * stage 2  gatling        three fast rounds, wide spread
+ * stage 3  + laser        vertical column, pierces everything in the lane
+ * stage 4  + lightning    bolts strike random enemies all over the field
+ * stage 5  + second laser two columns
+ * stage 6  + third laser  three columns, gatling at full rate
+ * knives: one more blade each stage, up to five
+ */
+static int vs_knives(void)      { return vs_stage < 5 ? vs_stage : 5; }
+static int vs_lasers(void)      { return vs_stage >= 6 ? 3 : (vs_stage >= 5 ? 2 : (vs_stage >= 3 ? 1 : 0)); }
+static int vs_has_bolt(void)    { return vs_stage >= 4; }
+static int vs_gun_period(void)  { return vs_stage >= 6 ? 4 : (vs_stage >= 5 ? 6 : (vs_stage >= 2 ? 9 : 22)); }
+static int vs_gun_rounds(void)  { return vs_stage >= 2 ? 3 : 1; }
+static const char *vs_wpn_name(void)
+{
+    switch (vs_stage) {
+    case 1:  return "PISTOL";
+    case 2:  return "GATLING";
+    case 3:  return "GATLING + LASER";
+    case 4:  return "GATLING + LASER + BOLT";
+    case 5:  return "2 LASERS + BOLT";
+    default: return "3 LASERS + BOLT";
+    }
 }
 
 static void vs_reset(void)
@@ -656,12 +689,12 @@ static void vs_reset(void)
         vs_sn[i] = (int16_t)v;
         vs_cs[i] = vs_sn[(i + 16) & 63];
     }
-    vs_foe_n = vs_bul_n = vs_gem_n = 0;
+    vs_foe_n = vs_bul_n = vs_gem_n = vs_wpn_n = 0;
     vs_stage = 1; vs_kill = 0; vs_frame = 0; vs_acc = 0;
     vs_px = SCREEN_W / 2; vs_py = SCREEN_H / 2 + 40;
     vs_ph = 100; vs_flash = 0; vs_best = 0; vs_banner = 66;
     vs_cam_x = 128; vs_cam_y = 72;
-    vs_gun_cd = 0; vs_knife_a = 0;
+    vs_gun_cd = 0; vs_laser_cd = 0; vs_bolt_cd = 0; vs_knife_a = 0;
 }
 
 static void vs_update(void)
@@ -670,60 +703,63 @@ static void vs_update(void)
 
     int st = vs_frame / VS_STAGE_FRAMES + 1;
     if (st > 6) st = 6;
-    if (st != vs_stage) { vs_stage = st; vs_banner = 66; }
+    if (st != vs_stage) {
+        vs_stage = st;
+        vs_banner = 66;
+        vs_laser_cd = 0;                       /* a new weapon fires immediately */
+        vs_bolt_cd = 0;
+    }
 
-    /* fractional spawn budget, so 26.4 / s is expressible */
     vs_acc += vs_rate[vs_stage - 1];
     while (vs_acc >= 60) { vs_acc -= 60; vs_spawn(1); }
 
-    /* ---- camera: the map drifts, the character stays put.  A survivors-like
-     * plays on a map, and a map that never moves makes the ground look painted
-     * on the screen. ---- */
+    /* camera: the map drifts so the ground is never a painted backdrop */
     vs_cam_x = (vs_cam_x + 1) % 257;
     vs_cam_y = (vs_cam_y + 1) % 145;
 
-    /* ---- player: small circle around the middle, on the ground ---- */
+    /* player roams further than before: with slower enemies a wider path leaves
+     * open ground behind him, which is what makes the weapons readable */
     {
         int t = vs_frame / 3;
-        vs_px = SCREEN_W / 2 + 90 * vs_sn[t & 63] / 64;
-        vs_py = SCREEN_H / 2 + 60 * vs_sn[(t / 3 + 20) & 63] / 64 + 30;
+        vs_px = SCREEN_W / 2 + 300 * vs_sn[t & 63] / 64;
+        vs_py = SCREEN_H / 2 + 170 * vs_sn[(t / 3 + 20) & 63] / 64 + 20;
     }
     if (vs_flash > 0) vs_flash--;
 
-    /* ---- enemies: own heading, re-aimed a few times a second.  Re-aiming every
-     * frame makes them reverse either side of the player and pile up into two
-     * dense lines along his row and column - that was the "cross" artefact. ---- */
-    int spd = VS_WALK_SPD + vs_stage / 3;
+    /* ---- enemies: own heading, re-aimed four times a second ---- */
     for (int i = 0; i < vs_foe_n; i++) {
         vs_foe_t *f = &vs_foe[i];
-        if ((vs_frame + i) % 24 == 0) vs_aim(f, spd);
+        if ((vs_frame + i) % 16 == 0) vs_aim(f, vs_spd[f->kind]);
         f->x = (int16_t)(f->x + f->vx);
         f->y = (int16_t)(f->y + f->vy);
         if (f->flash) f->flash--;
-        if (f->x < -60 || f->x > SCREEN_W + 60 || f->y < -60 || f->y > SCREEN_H + 60) {
-            vs_place_at_edge(f);                 /* never seen popping in */
-            vs_aim(f, spd);
+        if (f->x < -70 || f->x > SCREEN_W + 70 || f->y < -70 || f->y > SCREEN_H + 70) {
+            vs_place_at_edge(f);
+            vs_aim(f, vs_spd[f->kind]);
         }
     }
 
-    /* ---- knife: orbits the player once every 1.7 s and hurts on contact ---- */
-    vs_knife_a = (vs_knife_a + 6) & 63;
+    /* ---- melee: N blades on one orbit, 1.2 revolutions per second ---- */
+    vs_knife_a = (vs_knife_a + 8) & 63;
     {
-        int ka = vs_knife_a & 63;
-        int kx = vs_px + 46 * vs_cs[ka] / 64;
-        int ky = vs_py + 46 * vs_sn[ka] / 64 - 8;
-        for (int i = 0; i < vs_foe_n; i++) {
-            vs_foe_t *f = &vs_foe[i];
-            int dx = f->x - kx, dy = (f->y - 12) - ky;
-            if (dx * dx + dy * dy < 24 * 24) {
-                if (f->hp > 0) { f->hp--; f->flash = 3; }
-                if (f->hp == 0) { vs_kill_at(i); i--; }
+        int n = vs_knives();
+        for (int b = 0; b < n; b++) {
+            int a = (vs_knife_a + b * (64 / 5)) & 63;
+            int kx = vs_px + 54 * vs_cs[a] / 64;
+            int ky = vs_py + 54 * vs_sn[a] / 64 - 10;
+            for (int i = 0; i < vs_foe_n; i++) {
+                vs_foe_t *f = &vs_foe[i];
+                int dx = f->x - kx, dy = (f->y - 14) - ky;
+                if (dx * dx + dy * dy < 28 * 28) {
+                    if (f->hp > 0) { f->hp--; f->flash = 2; }
+                    if (f->hp == 0) { vs_kill_at(i); i--; }
+                }
             }
         }
     }
 
-    /* ---- gun: picks the nearest enemy inside a cone and fires straight ---- */
-    if (--vs_gun_cd <= 0 && vs_bul_n + 1 <= VS_BUL_MAX) {
+    /* ---- gun ---- */
+    if (--vs_gun_cd <= 0) {
         int best = -1, bd = 1 << 30;
         for (int i = 0; i < vs_foe_n; i++) {
             int dx = vs_foe[i].x - vs_px, dy = vs_foe[i].y - vs_py;
@@ -731,27 +767,35 @@ static void vs_update(void)
             if (d2 < bd) { bd = d2; best = i; }
         }
         if (best >= 0) {
-            int dx = vs_foe[best].x - vs_px, dy = vs_foe[best].y - (vs_py - 12);
+            int dx = vs_foe[best].x - vs_px, dy = vs_foe[best].y - (vs_py - 14);
             int d = vs_ilen(dx, dy);
-            vs_bul_t *b = &vs_bul[vs_bul_n++];
-            b->x = (int16_t)(vs_px + dx * 18 / d);
-            b->y = (int16_t)(vs_py - 12 + dy * 18 / d);
-            b->vx = (int8_t)(dx * 9 / d);
-            b->vy = (int8_t)(dy * 9 / d);
-            b->ttl = 40;
+            int rounds = vs_gun_rounds();
+            for (int r = 0; r < rounds && vs_bul_n < VS_BUL_MAX; r++) {
+                /* spread the extra rounds: at stage 2+ the gun is a gatling, and
+                 * three identical tracers would still look like one bullet */
+                int jx = (r - rounds / 2) * 3;
+                int jy = (r & 1) ? 2 : -2;
+                vs_bul_t *p = &vs_bul[vs_bul_n++];
+                p->x = (int16_t)(vs_px + dx * 16 / d + jx);
+                p->y = (int16_t)(vs_py - 14 + dy * 16 / d + jy);
+                p->vx = (int8_t)(dx * 10 / d);
+                p->vy = (int8_t)(dy * 10 / d);
+                p->ttl = 44;
+                p->kind = (uint8_t)(vs_stage >= 2 ? 1 : 0);
+            }
         }
-        vs_gun_cd = 9;
+        vs_gun_cd = vs_gun_period();
     }
 
-    /* bullets: straight line, hit test against the horde */
     for (int i = 0; i < vs_bul_n; i++) {
         vs_bul_t *b = &vs_bul[i];
         b->x = (int16_t)(b->x + b->vx);
         b->y = (int16_t)(b->y + b->vy);
         int hit = 0;
         for (int j = 0; j < vs_foe_n && !hit; j++) {
-            int dx = vs_foe[j].x - b->x, dy = (vs_foe[j].y - 12) - b->y;
-            if (dx * dx + dy * dy < 16 * 16) {
+            int dx = vs_foe[j].x - b->x, dy = (vs_foe[j].y - 14) - b->y;
+            int r = vs_foe[j].kind == 1 ? 22 : 17;
+            if (dx * dx + dy * dy < r * r) {
                 vs_foe[j].flash = 3;
                 if (--vs_foe[j].hp == 0) vs_kill_at(j);
                 hit = 1;
@@ -763,6 +807,49 @@ static void vs_update(void)
             i--;
         }
     }
+
+    /* ---- lasers: a column that pierces the whole lane ---- */
+    if (vs_lasers() && --vs_laser_cd <= 0) {
+        int n = vs_lasers();
+        for (int k = 0; k < n && vs_wpn_n < VS_WPN_MAX; k++) {
+            vs_wpn_t *w = &vs_wpn[vs_wpn_n++];
+            /* the extra columns fire from the blade ring, so they read as a
+             * separate weapon rather than as the same laser drawn twice */
+            w->x = (int16_t)(vs_px + (k ? (k == 1 ? -70 : 70) : 0));
+            w->y = (int16_t)(vs_py - 10);
+            w->ttl = 6;
+            w->kind = 0;
+            for (int i = 0; i < vs_foe_n; i++) {
+                int dx = vs_foe[i].x - w->x;
+                if (dx < 0) dx = -dx;
+                if (dx < 15 && vs_foe[i].y < vs_py + 10) {
+                    vs_foe[i].flash = 2;
+                    if (--vs_foe[i].hp == 0) { vs_kill_at(i); i--; }
+                }
+            }
+        }
+        vs_laser_cd = 26;
+    }
+
+    /* ---- lightning: strikes a random enemy anywhere on the field ---- */
+    if (vs_has_bolt() && --vs_bolt_cd <= 0 && vs_foe_n > 6 && vs_wpn_n < VS_WPN_MAX) {
+        int i = rnd(0, vs_foe_n - 1);
+        vs_wpn_t *w = &vs_wpn[vs_wpn_n++];
+        w->x = vs_foe[i].x;
+        w->y = (int16_t)(vs_foe[i].y - 14);
+        w->ttl = 8;
+        w->kind = 1;
+        for (int j = 0; j < vs_foe_n; j++) {
+            int dx = vs_foe[j].x - w->x, dy = vs_foe[j].y - w->y;
+            if (dx * dx + dy * dy < 46 * 46) {
+                vs_foe[j].flash = 2;
+                if (--vs_foe[j].hp == 0) { vs_kill_at(j); j--; }
+            }
+        }
+        vs_bolt_cd = 18;
+    }
+    for (int i = 0; i < vs_wpn_n; i++)
+        if (--vs_wpn[i].ttl == 0) { vs_wpn[i] = vs_wpn[--vs_wpn_n]; i--; }
 
     /* contact: one point every 24 frames whatever how many are touching */
     if ((vs_frame % 24) == 0) {
@@ -776,7 +863,6 @@ static void vs_update(void)
         }
     }
 
-    /* gems: drift, then get pulled in */
     for (int i = 0; i < vs_gem_n; i++) {
         vs_gem_t *g = &vs_gem[i];
         int dx = vs_px - g->x, dy = vs_py - g->y;
@@ -805,7 +891,10 @@ static void vs_hw(void)
         bb_key(G_GEM.addr, G_GEM.stride, vs_gem[i].x, vs_gem[i].y,
                G_GEM.w, G_GEM.h, C_MAGENTA, 0);
 
-    /* horde: hit flash is a second, white sprite of the same silhouette */
+    /* light pool first, so every body stands on it */
+    bb_key(G_MARK.addr, G_MARK.stride, vs_px - G_MARK.w / 2, vs_py - 4,
+           G_MARK.w, G_MARK.h, C_MAGENTA, 0);
+
     for (int i = 0; i < vs_foe_n; i++) {
         const vs_foe_t *f = &vs_foe[i];
         const Spr *s = f->flash ? &G_ZOMB_HIT[f->kind] : &G_ZOMB[f->kind];
@@ -813,21 +902,40 @@ static void vs_hw(void)
                s->w, s->h, C_MAGENTA, 0);
     }
 
-    for (int i = 0; i < vs_bul_n; i++) {
-        const Spr *s = &G_SHOOT;
-        bb_key(s->addr, s->stride, vs_bul[i].x - s->w / 2, vs_bul[i].y - s->h / 2,
+    /* the character under its own weapons */
+    {
+        const Spr *s = &G_HERO[vs_flash > 6 ? 1 : 0];
+        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h + 10,
                s->w, s->h, C_MAGENTA, 0);
     }
 
-    /* ---- the character: feet on the ground, weapons drawn around it ---- */
-    {
-        int kx = vs_px + 46 * vs_cs[vs_knife_a & 63] / 64;
-        int ky = vs_py + 46 * vs_sn[vs_knife_a & 63] / 64 - 8;
-        const Spr *s = &G_HERO[vs_flash > 6 ? 1 : 0];
-        bb_key(G_KNIFE.addr, G_KNIFE.stride, kx - G_KNIFE.w / 2, ky - G_KNIFE.h / 2,
-               G_KNIFE.w, G_KNIFE.h, C_MAGENTA, 0);
-        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h + 8,
+    /* ---- weapons on top of everything ---- */
+    for (int i = 0; i < vs_wpn_n; i++) {
+        const vs_wpn_t *w = &vs_wpn[i];
+        if (w->kind == 0) {
+            const Spr *s = &G_LASER;
+            bb_key(s->addr, s->stride, w->x - s->w / 2, w->y - s->h,
+                   s->w, s->h, C_MAGENTA, 0);
+        } else {
+            const Spr *s = &G_BOLT;
+            bb_key(s->addr, s->stride, w->x - s->w / 2, w->y - s->h,
+                   s->w, s->h, C_MAGENTA, 0);
+        }
+    }
+    for (int i = 0; i < vs_bul_n; i++) {
+        const Spr *s = &G_SHOOT[vs_bul[i].kind];
+        bb_key(s->addr, s->stride, vs_bul[i].x - s->w / 2, vs_bul[i].y - s->h / 2,
                s->w, s->h, C_MAGENTA, 0);
+    }
+    {
+        int n = vs_knives();
+        for (int b = 0; b < n; b++) {
+            int a = (vs_knife_a + b * (64 / 5)) & 63;
+            int kx = vs_px + 54 * vs_cs[a] / 64;
+            int ky = vs_py + 54 * vs_sn[a] / 64 - 10;
+            bb_key(G_KNIFE.addr, G_KNIFE.stride, kx - G_KNIFE.w / 2, ky - G_KNIFE.h / 2,
+                   G_KNIFE.w, G_KNIFE.h, C_MAGENTA, 0);
+        }
     }
 
     /* ---- HUD ---- */
@@ -847,20 +955,23 @@ static void vs_hw(void)
         kv[2].k = "KILLS"; kv[2].v = kill; kv[2].vpal = PAL_CYAN;
         hw_card(UI_MARGIN, UI_TOP_Y + UI_TOP_H + 12, 0, "RUN", kv, 3);
 
+        /* the arsenal is the other half of the progression story */
+        hw_card(UI_MARGIN, UI_TOP_Y + UI_TOP_H + 148, 0, vs_wpn_name(), kv, 0);
+
         if (vs_banner > 0) {
             char bt[16];
             char *r = app_str(bt, "STAGE "); r = app_u32(r, (uint32_t)vs_stage); *r = 0;
-            int n = 0, bw;
-            while (bt[n]) n++;
-            bw = n * BIG_ADV + 56;
+            int n2 = 0, bw;
+            while (bt[n2]) n2++;
+            bw = n2 * BIG_ADV + 56;
             hw_panel(SCREEN_W / 2 - bw / 2, 208, bw, BIG_H + 34);
-            hwt_text_big(SCREEN_W / 2 - (n * BIG_ADV) / 2 + 4, 222, bt, 1);
+            hwt_text_big(SCREEN_W / 2 - (n2 * BIG_ADV) / 2 + 4, 222, bt, 1);
             vs_banner--;
         }
 
         hw_top("8  SURVIVORS   HORDE STRESS TEST");
         if (vs_ph > 20) {
-            char bb2[32];
+            char bb2[40];
             char *r2 = app_str(bb2, stg);
             r2 = app_str(r2, "  OF 6   HP "); r2 = app_u32(r2, (uint32_t)vs_ph); *r2 = 0;
             hw_bottom(bb2);
@@ -870,8 +981,7 @@ static void vs_hw(void)
         hw_fps_plate();
     }
 
-    /* ground + HUD framing */
-    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 2 + 8);
+    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + vs_wpn_n + vs_knives() + 2 + 8);
     if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
 
@@ -882,12 +992,10 @@ static void vs_tick(void)
     if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
 
-/* the dispatcher still calls these four names; the bodies are the game above */
 static void limit_reset(void)  { vs_reset(); }
 static void limit_update(void) { vs_update(); }
 static void limit_hw(void)     { vs_hw(); }
 static void limit_tick(void)   { vs_tick(); }
-
 /* =============================================================== images === */
 /*
  * Photographs.  They are not part of the program image - a single 1280x720

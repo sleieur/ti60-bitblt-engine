@@ -24,14 +24,15 @@
 #include "game.h"
 
 /* ------------------------------------------------------------------ config */
-#define MAX_EBUL   1100
+#define MAX_EBUL   560      /* was 1100: the survivors scene needs the RAM more than a
+                             * denser boss pattern does */
 /* RAM headroom matters: the art pass pushed .text up and the region is 124 KB.
  * A pixel-art pass costs code, so the pools were trimmed to their real high
  * water marks (measured on the busiest wave) to keep 4 KB of stack free. */
 #define MAX_PBUL   64
 #define MAX_FOE    20
-#define MAX_PART   80
-#define MAX_STAR   112
+#define MAX_PART   64
+#define MAX_STAR    96
 
 #define PLAY_TOP   72
 #define PLAY_L     26
