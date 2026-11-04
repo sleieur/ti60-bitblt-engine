@@ -23,6 +23,7 @@
 #include "bbshow.h"
 #include "bitblt_regs.h"
 #include "game.h"
+#include "art.h"
 
 #define DDR_LO 0x01000000u
 #define DDR_HI 0x07600000u
@@ -209,6 +210,26 @@ int main(void)
     swr_set_delta(delta);
     hwt_set_delta(delta);
     scenes_set_delta(delta);
+
+    /* the debugger restores game_assets.bin to GAME_ASSET_ADDR on the board;
+     * copying it in here is what lets the preview show the hand-painted sprites
+     * instead of the procedural fallback */
+    {
+        FILE *fp = fopen("game_assets.bin", "rb");
+        if (fp) {
+            fseek(fp, 0, SEEK_END);
+            long n = ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            long cap = (long)(DDR_HI - GAME_ASSET_ADDR);
+            if (n > cap) n = cap;
+            if (fread(A(GAME_ASSET_ADDR), 1, (size_t)n, fp) != (size_t)n)
+                fprintf(stderr, "short read on game_assets.bin\n");
+            fclose(fp);
+            printf("game_assets.bin: %ld bytes at 0x%08X\n", n, GAME_ASSET_ADDR);
+        } else {
+            printf("game_assets.bin not found - procedural art\n");
+        }
+    }
 
     content_init();
     game_init();

@@ -64,6 +64,17 @@ extern Spr G_STREAK[2];
  * debris.  Two sizes: one for a foe, one for the boss core. */
 extern Spr G_BLOOM[2];
 
+/* Boss arms: a mirrored pair of rail cannons that hang off the alien head, so
+ * the fight reads as a machine rather than a floating skull. */
+extern Spr G_ARM[2];
+
+/* Sprite sheet packed by tools/pack_game.py and written to DDR with
+ * tools/load_game.ps1.  If the magic is missing the procedural art is used
+ * instead, so the firmware never depends on the load having happened. */
+#define GAME_ASSET_ADDR   0x07400000u
+#define GAME_ASSET_MAGIC  0x4B415047u   /* 'GPAK' */
+extern int art_pack_loaded;
+
 /* translucent panel bank: 4 colour bands of 224 rows, 960 px wide.
  * Draw a panel with bb_alpha(UI_TEX + band*224*UI_TEX_STRIDE + x*2, ...). */
 #define UI_TEX_BASE    0x05200000u

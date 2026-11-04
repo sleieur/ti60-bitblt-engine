@@ -30,8 +30,8 @@
  * water marks (measured on the busiest wave) to keep 4 KB of stack free. */
 #define MAX_PBUL   64
 #define MAX_FOE    20
-#define MAX_PART   96
-#define MAX_STAR   160
+#define MAX_PART   80
+#define MAX_STAR   112
 
 #define PLAY_TOP   72
 #define PLAY_L     26
@@ -155,9 +155,11 @@ static void make_sky(void)
     /* almost black, with a faint blue haze towards the bottom */
     for (int i = 0; i < N_BG_BAND; i++) {
         int y = i * (SCREEN_H / N_BG_BAND) + 7;
-        int r = (y * 2) / SCREEN_H;
-        int g = 1 + (y * 4) / SCREEN_H;
-        int b = 6 + (y * 13) / SCREEN_H;
+        /* Near-black with a hint of blue at the bottom.  Anything brighter turns
+         * the playfield into a blue wall and the neon sprites stop glowing. */
+        int r = (y * 1) / SCREEN_H;
+        int g = 1 + (y * 2) / SCREEN_H;
+        int b = 4 + (y * 7) / SCREEN_H;
         bg_band[i] = (uint16_t)((r << 11) | (g << 5) | b);
     }
 }
@@ -887,9 +889,20 @@ static void draw_world(void)
 {
     int i;
 
-    if (boss_alive)
-        blit(&G_BOSS[(boss_phase == 2 && !boss_dying) ? 1 : 0],
-             PXR(boss_x) - G_BOSS[0].w / 2 + sx, PXR(boss_y) - G_BOSS[0].h / 2 + sy);
+    if (boss_alive) {
+        const Spr *bs = &G_BOSS[(boss_phase == 2 && !boss_dying) ? 1 : 0];
+        int bx = PXR(boss_x) - bs->w / 2 + sx;
+        int by = PXR(boss_y) - bs->h / 2 + sy;
+        /* Arms hang behind the head: the alien sprite alone is a floating skull,
+         * with the mirrored rail cannons it becomes a machine.  They fade in
+         * with the head so the entrance still reads as one thing. */
+        if (G_ARM[0].w) {
+            int ay = by + bs->h / 2 - G_ARM[0].h / 2;
+            blit(&G_ARM[0], bx - G_ARM[0].w + 6, ay);
+            blit(&G_ARM[1], bx + bs->w - 6, ay);
+        }
+        blit(bs, bx, by);
+    }
 
     for (i = 0; i < nfo; i++) {
         const Spr *s = &G_FOE[fo[i].kind];

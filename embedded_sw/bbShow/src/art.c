@@ -381,6 +381,74 @@ Spr G_NEB[2];
 Spr G_PLANET;
 Spr G_STREAK[2];
 Spr G_BLOOM[2];
+Spr G_ARM[2];
+int  art_pack_loaded;
+
+/* ------------------------------------------------------------ sprite pack ---
+ * The RUOK / Kenney CC0 set is packed by tools/pack_game.py into a small blob
+ * that lives at GAME_ASSET_ADDR in DDR.  Reading it here is what decides whether
+ * the game draws hand-painted sprites or the procedural fallback, so a missing
+ * load is a degradation, never a crash.
+ */
+static uint8_t  *pack_base;
+static uint32_t  pack_data;
+
+static uint32_t rd32(const uint8_t *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
+static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+
+static Spr pack_spr(int idx)
+{
+    Spr s;
+    const uint8_t *r = pack_base + 0x10 + idx * 12;
+    /* pack_game.py stores already-absolute offsets (they start at 0x1000), so
+     * adding the data base again would slide every sprite 4 KiB into the next
+     * one - which showed up as diagonal rainbow garbage inside the ships. */
+    s.addr   = GAME_ASSET_ADDR + rd32(r);
+    s.w      = rd16(r + 4);
+    s.h      = rd16(r + 6);
+    s.stride = rd16(r + 8);
+    return s;
+}
+
+static int art_load_pack(void)
+{
+    /* mem_delta is 0 on the board and points the address into the preview arena
+     * on the PC, so the same code reads the same blob in both places */
+    pack_base = (uint8_t *)(uintptr_t)(GAME_ASSET_ADDR + mem_delta);
+    if (rd32(pack_base) != GAME_ASSET_MAGIC || rd32(pack_base + 4) != 1) return 0;
+    if (rd32(pack_base + 8) < 20) return 0;
+    pack_data = rd32(pack_base + 0x0C);
+
+    /* indices are the order of SPRITES[] in pack_game.py */
+    G_FOE[FOE_A] = pack_spr(0);
+    G_FOE[FOE_B] = pack_spr(2);
+    G_FOE[FOE_C] = pack_spr(3);
+    G_BOSS[0] = pack_spr(4);
+    G_BOSS[1] = pack_spr(5);
+    G_ARM[0]  = pack_spr(6);
+    G_ARM[1]  = pack_spr(7);
+
+    G_BUL[BK_R]      = pack_spr(8);     /* small: bright tip only  10x18 */
+    G_BUL[BK_B]      = pack_spr(9);
+    G_BUL[BK_C]      = pack_spr(10);
+    G_BUL[BK_P]      = pack_spr(11);    /* medium                   10x30 */
+    G_BUL[BK_Y]      = pack_spr(12);
+    G_BUL[BK_RICE]   = pack_spr(13);
+    G_BUL[BK_SCALE]  = pack_spr(14);    /* large                    10x50 */
+    G_BUL[BK_STAR]   = pack_spr(15);
+    G_BUL[BK_BIG_R]  = pack_spr(16);
+    G_BUL[BK_BIG_P]  = pack_spr(14);
+
+    G_PB[PB_NEEDLE] = pack_spr(17);     /* neon bolt 17x47 */
+    G_PB[PB_BALL]   = pack_spr(18);
+
+    /* The RUOK planet ships on a solid black background rather than with alpha,
+     * so blitting it puts a black box in the starfield.  The procedural one is
+     * transparent by construction; keep it. */
+
+    art_pack_loaded = 1;
+    return 1;
+}
 
 /* 4x4 ordered dither, used to fake a soft edge with a 1-bit key */
 static const uint8_t DITH[4][4] = {
@@ -434,12 +502,14 @@ static void build_ships(void)
     G_SHIP[SHIP_HIT] = spr_new(64, 64, MAG);
     draw_hull(&G_SHIP[SHIP_HIT], &hh);
 
-    G_FOE[FOE_A] = spr_new(64, 64, MAG);
-    draw_hull(&G_FOE[FOE_A], &ea);
-    G_FOE[FOE_B] = spr_new(64, 64, MAG);
-    draw_hull(&G_FOE[FOE_B], &eb);
-    G_FOE[FOE_C] = spr_new(64, 64, MAG);
-    draw_hull(&G_FOE[FOE_C], &ec);
+    if (!art_pack_loaded) {
+        G_FOE[FOE_A] = spr_new(64, 64, MAG);
+        draw_hull(&G_FOE[FOE_A], &ea);
+        G_FOE[FOE_B] = spr_new(64, 64, MAG);
+        draw_hull(&G_FOE[FOE_B], &eb);
+        G_FOE[FOE_C] = spr_new(64, 64, MAG);
+        draw_hull(&G_FOE[FOE_C], &ec);
+    }
 
     /* engine flames, three animation frames */
     for (int f = 0; f < 3; f++) {
@@ -813,9 +883,15 @@ static void build_ui_texture(void)
 
 void art_build(void)
 {
+    /* Hand-painted sprites first: if the DDR blob is there, everything the pack
+     * covers is skipped below and the RAM it would have taken stays free. */
+    art_load_pack();
+
     build_ships();
-    build_boss();
-    build_bullets();
+    if (!art_pack_loaded) {
+        build_boss();
+        build_bullets();
+    }
     build_fx();
     build_stars();
     build_nebulae();
@@ -836,8 +912,10 @@ void art_build(void)
     arcade(&G_SHIP[SHIP_LEFT], 2);
     arcade(&G_SHIP[SHIP_RIGHT], 2);
     arcade(&G_SHIP[SHIP_HIT], 2);
-    for (int i = 0; i < FOE_N; i++) arcade(&G_FOE[i], 2);
-    for (int i = 0; i < 2; i++)     arcade(&G_BOSS[i], 3);
+    if (!art_pack_loaded) {
+        for (int i = 0; i < FOE_N; i++) arcade(&G_FOE[i], 2);
+        for (int i = 0; i < 2; i++)     arcade(&G_BOSS[i], 3);
+    }
     for (int i = 0; i < 6; i++)     arcade(&G_BOOM[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_RING[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_HIT[i], 1);
