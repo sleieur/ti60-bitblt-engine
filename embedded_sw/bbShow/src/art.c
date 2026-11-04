@@ -386,6 +386,12 @@ Spr G_PLANET;
 Spr G_SWARM[3];
 Spr G_GEM;
 Spr G_BLADE;
+Spr G_HERO[2];
+Spr G_ZOMB[3];
+Spr G_ZOMB_HIT[3];
+Spr G_KNIFE;
+Spr G_SHOOT;
+Spr G_GROUND;
 Spr G_STREAK[2];
 Spr G_BLOOM[2];
 Spr G_ARM[2];
@@ -1024,6 +1030,220 @@ static void build_swarm(void)
     }
 }
 
+
+/* -------------------------------------------------- survivors, oblique view ---
+ * The genre is drawn in a fake-3D projection: a character is seen from slightly
+ * above and in front, so you get a head, a body and feet, and it stands on a
+ * shadow.  A true top-down sprite of the same character is an anonymous disc -
+ * that is why the first attempt "looked like a plane carrying a magnet".
+ *
+ * Every sprite here is built the same way: feet ellipse -> body -> head -> a rim
+ * light on the upper left, so the whole cast shares one light direction.
+ */
+static void vs_shadow(Spr *s, int cx, int cy, int rx, int ry)
+{
+    for (int y = cy - ry; y <= cy + ry; y++) {
+        for (int x = cx - rx; x <= cx + rx; x++) {
+            int dx = (x - cx) * 100 / rx, dy = (y - cy) * 100 / ry;
+            if (dx * dx + dy * dy > 10000) continue;
+            /* dotted, half density at the rim: reads as a soft contact shadow
+             * without needing alpha blending */
+            if (dx * dx + dy * dy > 5500 && ((x + y) & 1)) continue;
+            pset(s, x, y, 0x0841u);
+        }
+    }
+}
+
+static void build_hero(void)
+{
+    for (int f = 0; f < 2; f++) {
+        Spr *s = &G_HERO[f];
+        *s = spr_new(32, 46, MAG);
+        int cx = 16, feet = 42;
+        vs_shadow(s, cx, feet, 9, 3);
+
+        /* legs: one forward in the walk frame, so the idle pose reads as a pose */
+        int leg = f ? 1 : 0;
+        for (int y = 27; y < feet - 1; y++)
+            for (int x = cx - 8; x <= cx + 7; x++) {
+                int off = (y > 27 && x > cx) ? leg : ((y > 27 && x < cx) ? -leg : 0);
+                pset(s, x + off, y, x < cx + 1 ? 0x2945u : 0x18C3u);
+            }
+        /* torso: dark blue jacket with an orange strap, lit from the upper left */
+        for (int y = 14; y < 29; y++)
+            for (int x = cx - 8; x <= cx + 7; x++) {
+                int lam = (cx - x) + (22 - y);
+                uint16_t c = lam > 10 ? 0x5ADFu : (lam > 2 ? 0x2A5Fu : 0x192Fu);
+                if (y > 18 && y < 22 && x > cx - 6) c = 0xFC60u;      /* strap */
+                pset(s, x, y, c);
+            }
+        /* head: helmet + visor, the brightest thing so it draws the eye */
+        for (int y = 3; y < 16; y++)
+            for (int x = cx - 5; x <= cx + 4; x++) {
+                int dx = x - cx, dy = y - 9;
+                if (dx * dx + dy * dy * 3 > 44) continue;
+                uint16_t c = (dx + dy < -2) ? 0xDFF7u : (dy > 1 ? 0x9C93u : 0xB5B6u);
+                if (dy >= 0 && dy <= 2 && dx >= -4 && dx <= 2) c = 0x07FFu;  /* visor */
+                pset(s, x, y, c);
+            }
+        /* rifle held across the body, pointing right */
+        for (int x = cx + 5; x < 30; x++) pset(s, x, 23, 0x7BEFu);
+        for (int x = cx + 5; x < 14; x++) pset(s, x, 24, 0x39E7u);
+        /* a white silhouette of the same shape is the damage flash */
+        if (f == 0) {
+            G_HERO[1] = spr_new(26, 38, MAG);
+            for (int y = 0; y < 46; y++)
+                for (int x = 0; x < 32; x++) {
+                    uint16_t c = A(s->addr)[(uint32_t)y * (s->stride / 2) + x];
+                    if (c != MAG) pset(&G_HERO[1], x, y, 0xFFFFu);
+                }
+        }
+    }
+}
+
+static void build_zombies(void)
+{
+    /* 0 grunt / 1 brute / 2 armoured, plus a white flash version of each */
+    static const uint16_t base[3] = { 0x2E44u, 0xD321u, 0x8A5Fu };
+    static const uint16_t lite[3] = { 0x7FE9u, 0xFFD3u, 0xC6BFu };
+
+    for (int k = 0; k < 3; k++) {
+        Spr *s = &G_ZOMB[k];
+        int w = k == 1 ? 34 : 28, h = k == 1 ? 42 : 34;
+        *s = spr_new(w, h, MAG);
+        int cx = w / 2, feet = h - 3;
+        vs_shadow(s, cx, feet, k == 1 ? 9 : 7, 3);
+
+        /* legs */
+        for (int y = feet - 8; y < feet; y++)
+            for (int x = cx - 4; x <= cx + 3; x++)
+                pset(s, x, y, 0x2104u);
+        /* body: wider for the brute, blockier for the armoured one */
+        for (int y = 8; y < feet - 7; y++)
+            for (int x = cx - (k == 1 ? 8 : 6); x <= cx + (k == 1 ? 7 : 5); x++) {
+                int dx = x - cx, dy = y - 12;
+                if (k == 2 && ((x + y) & 1) == 0) continue;    /* plate texture */
+                int lam = (cx - x) + (14 - y);
+                uint16_t c = lam > 6 ? lite[k] : (lam > -2 ? base[k]
+                              : mix565(0x0000u, base[k], 150));
+                pset(s, x, y, c);
+            }
+        /* head: a smaller blob on top, so the silhouette reads as a person */
+        for (int y = 1; y < 10; y++)
+            for (int x = cx - 4; x <= cx + 3; x++) {
+                int dx = x - cx, dy = y - 5;
+                if (dx * dx + dy * dy * 2 > 20) continue;
+                pset(s, x, y, (dx + dy < -1) ? lite[k] : base[k]);
+            }
+        /* two red eyes: at this size they are the only facial detail that lands */
+        pset(s, cx - 2, 5, 0xF800u);
+        pset(s, cx + 2, 5, 0xF800u);
+
+        /* white-on-hit copy */
+        G_ZOMB_HIT[k] = spr_new(w, h, MAG);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                uint16_t c = A(s->addr)[(uint32_t)y * (s->stride / 2) + x];
+                if (c != MAG) pset(&G_ZOMB_HIT[k], x, y, 0xFFFFu);
+            }
+    }
+}
+
+static void build_weapons(void)
+{
+    /* knife: blade + guard + handle, drawn vertical so the orbit needs no maths */
+    {
+        Spr *s = &G_KNIFE;
+        *s = spr_new(12, 28, MAG);
+        for (int y = 1; y < 18; y++)
+            for (int x = 4; x < 9; x++) {
+                int taper = x - 4 + (y < 4 ? (4 - y) * 2 : 0);
+                if (taper > 4) continue;
+                pset(s, x, y, x < 6 ? 0xE7FFu : 0x9CF3u);
+            }
+        for (int x = 2; x < 10; x++) pset(s, x, 18, 0xFC60u);
+        for (int y = 19; y < 26; y++)
+            for (int x = 5; x < 8; x++) pset(s, x, y, 0x39E7u);
+        arcade(s, 1);
+    }
+    /* bullet: a short tracer, wide enough to see at speed */
+    {
+        Spr *s = &G_SHOOT;
+        *s = spr_new(8, 8, MAG);
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++) {
+                int dx = x - 3, dy = y - 3;
+                if (dx * dx + dy * dy > 9) continue;
+                pset(s, x, y, dx * dx + dy * dy < 3 ? 0xFFFFu : 0xFFE0u);
+            }
+    }
+}
+
+/* ------------------------------------------------------------- ground map ---
+ * 1536x864 baked once at boot; the scene blits a 1280x720 window out of it each
+ * frame, so a scrolling map costs exactly one task.  Grass is two-tone noise,
+ * plus patches, a worn path and scattered stones: enough variety that the eye
+ * does not lock onto a repeated tile.
+ */
+static void build_ground(void)
+{
+    const int W = 1536, H = 864;
+    Spr *s = &G_GROUND;
+    *s = spr_new(W, H, 0);
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+            int n = onoise(x, y, 48, 0x5A17u) * 3 + onoise(x, y, 16, 0x5A17u + 7);
+            n /= 4;                                   /* 0..255 */
+            /* Dark olive, not lawn green: the RGB565 green channel is 6 bits and
+             * anything above 20% reads as neon next to the sprites. */
+            int g = 6 + n / 12;
+            int r = 3 + n / 26;
+            int bl = 2 + n / 40;
+            /* One road that curves across the map.  Two things to get right:
+             * a modulo band tiles into parallel highways, and a per-cell hash
+             * gives a jagged stripe - so the curve is a plain parabola, which
+             * is smooth by construction. */
+            int dx2 = x - W / 2;
+            int wob = dx2 * dx2 / 26000;
+            int d = y - (H / 2 + wob);
+            if (d < 0) d = -d;
+            if (d < 40) {
+                /* dirt in 565 units: 40 in the red field would clamp to full red
+                 * and turn the road salmon-pink */
+                int k2 = 255 - d * 5;
+                r = (r * (255 - k2) + 11 * k2) / 255;
+                g = (g * (255 - k2) + 9 * k2) / 255;
+                bl = (bl * (255 - k2) + 6 * k2) / 255;
+            }
+            uint16_t c = (uint16_t)(((r > 31 ? 31 : r) << 11) |
+                                    ((g > 63 ? 63 : g) << 5) |
+                                    (bl > 31 ? 31 : bl));
+            b[y * st + x] = c;
+        }
+    }
+    /* stones and tufts, placed by hash so the pattern is stable across builds */
+    uint32_t h = 0x1234567u;
+    for (int i = 0; i < 1600; i++) {
+        h = h * 1664525u + 1013904223u;
+        int x = (int)(h >> 8) % (W - 6);
+        int y = (int)(h >> 20) % (H - 6);
+        h = h * 1664525u + 1013904223u;
+        int kind = (int)(h >> 12) & 3;
+        if (kind < 2) {                               /* stone */
+            for (int dy = 0; dy < 3; dy++)
+                for (int dx = 0; dx < 4; dx++) {
+                    if ((dx == 3 && dy == 2) || (dx == 0 && dy == 0)) continue;
+                    pset(s, x + dx, y + dy, dy ? 0x52A9u : 0x7BEFu);
+                }
+        } else {                                      /* tuft */
+            for (int k2 = 0; k2 < 4; k2++) pset(s, x + k2, y + (k2 & 1), 0x2D26u);
+        }
+    }
+}
+
 static void build_streaks(void)
 {
     /* Two lengths so the near ones read as faster than the far ones. */
@@ -1066,6 +1286,10 @@ void art_build(void)
     build_bloom(1, 240, 0xFEA0u);     /* boss core: amber */
     build_streaks();
     build_swarm();
+    build_hero();
+    build_zombies();
+    build_weapons();
+    build_ground();
     build_ui_texture();
 
     /* Flatten to the arcade grid.  Cell 2 for the small sprites keeps the shape

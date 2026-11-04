@@ -546,40 +546,33 @@ static void summary_hw(void)
 
 /* ================================================== survivors stress test === */
 /*
- * Scene 8 used to be a bare AIMD probe: random orbs bouncing around, more of
- * them every second, until the frame rate broke.  It measured the ceiling but
- * it looked like a benchmark, not like a game.
+ * Scene 8, second design.  The first attempt failed for reasons that are worth
+ * writing down, because each one is a genre rule rather than a taste:
  *
- * This is the same measurement wrapped in the genre that is built for it.  A
- * survivors-like *is* a stress test: enemies arrive as a horde, the player's
- * weapons fire on their own, and the load climbs by design as the run goes on.
- * Six stages in about 75 s, each one roughly doubling the spawn rate, so the
- * frame budget is consumed in front of the viewer instead of behind a number.
+ *   - a pure top-down view of a character reads as a flat disc.  Survivors-likes
+ *     are drawn in a fake-3D (oblique) projection: you see the character's front
+ *     and a little of its top, and it stands on a shadow.  Without that, no
+ *     amount of shading helps.
+ *   - enemies must come from the map, not from a ring around the player, or the
+ *     field looks like the player is dragging them.
+ *   - the ground has to exist.  An empty starfield makes every sprite look like
+ *     it is floating in a vacuum.
+ *   - the player carries a melee weapon that orbits and a gun that fires, because
+ *     that is the silhouette of the genre: you read the build from the weapons.
  *
- * What was kept from the old probe:
- *   - every element is a colour-keyed blit, so the DDR path stays the limit;
- *   - the sprite count and the frame rate are still on screen;
- *   - a physical ceiling still exists and is still reached near the end.
- *
- * What was dropped, deliberately:
- *   - per-bullet vs per-enemy collision.  760 enemies x 240 bullets is 182k
- *     distance tests a frame, which the 100 MHz core cannot afford.  Damage is
- *     dealt by the player's aura, an expanding shock ring and target-picked
- *     strikes: constant cost, no all-pairs loop, and it looks the same.
- *   - pathfinding.  Enemies walk straight at the player, which is what the
- *     genre does anyway.
- *
- * The pool reuses the 16 KiB the old probe occupied; the new layout needs 9 KiB,
- * so the scene got cheaper as well as better looking.
+ * Everything is still BitBlt work - the stress measurement is unchanged, only
+ * the picture it is wearing.
  */
-#define VS_FOE_MAX   760
-#define VS_BUL_MAX   240
-#define VS_GEM_MAX   120
+#define VS_FOE_MAX   700
+#define VS_BUL_MAX    64
+#define VS_GEM_MAX   100
+
+#define VS_WALK_SPD    3
 #define VS_STAGE_FRAMES 270        /* 4.5 s at 60 fps */
 
-typedef struct { int16_t x, y; int8_t vx, vy; uint8_t hp; uint8_t kind; } vs_foe_t;
-typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl; uint8_t kind; } vs_bul_t;
-typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl; uint8_t pad; } vs_gem_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t hp, kind, flash; } vs_foe_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl, pad; } vs_bul_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl, pad; } vs_gem_t;
 
 static vs_foe_t vs_foe[VS_FOE_MAX];
 static vs_bul_t vs_bul[VS_BUL_MAX];
@@ -588,86 +581,56 @@ static vs_gem_t vs_gem[VS_GEM_MAX];
 static int      vs_foe_n, vs_bul_n, vs_gem_n;
 static int      vs_stage, vs_kill, vs_frame, vs_acc;
 static int      vs_px, vs_py, vs_ph, vs_flash;
-static int      vs_best;             /* sprite count that still held 60 fps */
-static int      vs_burst;            /* expanding shock ring, 0 = idle      */
-static int      vs_banner;           /* stage banner frames left            */
-static int16_t  vs_cs[64], vs_sn[64];/* 64-step cosine/sine, no libm        */
+static int      vs_cam_x, vs_cam_y;
+static int      vs_best;
+static int      vs_banner;
+static int      vs_gun_cd, vs_knife_a;
+static int16_t  vs_cs[64], vs_sn[64];
 
 /* spawn budget per second, index = stage - 1 */
-static const uint16_t vs_rate[6] = { 26, 52, 96, 168, 270, 400 };
-/* live enemy ceiling per stage: the last one is deliberately above what the
- * engine can draw, so the frame rate really does fall at the end */
-static const uint16_t vs_cap[6]  = { 70, 150, 280, 430, 590, 760 };
+static const uint16_t vs_rate[6] = { 26, 52, 96, 168, 270, 380 };
+/* live ceiling per stage: the last one is above what the engine can draw, so the
+ * frame rate really does fall at the end */
+static const uint16_t vs_cap[6]  = { 80, 160, 280, 420, 560, 700 };
 
-static void vs_reset(void)
+static int vs_ilen(int x, int y)
 {
-    for (int i = 0; i < 64; i++) {
-        /* quadratic sine approximation, then normalised: good to ~1.5 px at the
-         * radius we use, and no floating point anywhere near the frame loop */
-        int t = (i * 4) % 64;                      /* 0..63 -> quarter wave   */
-        int q = t < 32 ? t : 63 - t;               /* triangle, 0..31         */
-        int v = q * (64 - q) / 16;                 /* parabola, 0..64         */
-        if (i >= 16 && i < 48) v = -v;
-        vs_sn[i] = (int16_t)v;
-        vs_cs[i] = vs_sn[(i + 16) & 63];
-    }
+    int ax = x < 0 ? -x : x, ay = y < 0 ? -y : y, r = 0, v = ax > ay ? ax : ay;
+    while (v > 0) { v >>= 2; r += v; }          /* cheap sqrt, 1% error is fine */
+    return r ? r : 1;
+}
 
-    vs_foe_n = vs_bul_n = vs_gem_n = 0;
-    vs_stage = 1;
-    vs_kill  = 0;
-    vs_frame = 0;
-    vs_acc   = 0;
-    vs_px    = SCREEN_W / 2;
-    vs_py    = SCREEN_H - 190;
-    vs_ph    = 100;
-    vs_flash = 0;
-    vs_best  = 0;
-    vs_burst = 0;
-    vs_banner = 66;
+/* Direction from (x,y) toward the player, scaled to `spd`. */
+static void vs_aim(vs_foe_t *f, int spd)
+{
+    int dx = vs_px - f->x, dy = vs_py - f->y;
+    int d = vs_ilen(dx, dy);
+    f->vx = (int8_t)(dx * spd / d);
+    f->vy = (int8_t)(dy * spd / d);
+    if (!f->vx && !f->vy) f->vy = (int8_t)spd;
+}
+
+static void vs_place_at_edge(vs_foe_t *f)
+{
+    int per = (SCREEN_W + SCREEN_H) * 2;
+    int q = rnd(0, per - 1);
+    if (q < SCREEN_W)                          { f->x = (int16_t)q;              f->y = -30; }
+    else if (q < SCREEN_W + SCREEN_H)          { f->x = SCREEN_W + 30;          f->y = (int16_t)(q - SCREEN_W); }
+    else if (q < SCREEN_W * 2 + SCREEN_H)      { f->x = (int16_t)(q - SCREEN_W - SCREEN_H); f->y = SCREEN_H + 30; }
+    else                                       { f->x = -30;                     f->y = (int16_t)(q - SCREEN_W * 2 - SCREEN_H); }
 }
 
 static void vs_spawn(int n)
 {
     for (int k = 0; k < n; k++) {
         if (vs_foe_n >= vs_cap[vs_stage - 1]) return;
-        /* spawn on the ring that encloses the screen, so the horde always walks
-         * in from outside the frame instead of popping into view */
-        /* Uniform along the four edges, by perimeter length.  A random angle
-         * projected onto the border is NOT uniform on a 16:9 frame: the top and
-         * bottom edges are nearer the centre, so most spawns land there and the
-         * horde walks in as one vertical column. */
-        int per = (SCREEN_W + SCREEN_H) * 2;
-        int r = rnd(0, per - 1);
-        int x, y;
-        if (r < SCREEN_W) {                       /* top */
-            x = r;                  y = -28;
-        } else if (r < SCREEN_W + SCREEN_H) {     /* right */
-            x = SCREEN_W + 28;      y = r - SCREEN_W;
-        } else if (r < SCREEN_W * 2 + SCREEN_H) { /* bottom */
-            x = r - SCREEN_W - SCREEN_H;  y = SCREEN_H + 28;
-        } else {                                  /* left */
-            x = -28;                y = r - SCREEN_W * 2 - SCREEN_H;
-        }
         vs_foe_t *f = &vs_foe[vs_foe_n++];
-        f->x = (int16_t)(x < -40 ? -40 : (x > SCREEN_W + 40 ? SCREEN_W + 40 : x));
-        f->y = (int16_t)(y < -40 ? -40 : (y > SCREEN_H + 40 ? SCREEN_H + 40 : y));
-        /* Fixed heading, aimed at the player once at spawn and never updated.
-         * Re-aiming every frame makes enemies reverse around him and they end up
-         * oscillating into a cross pattern of two dead lines; a straight heading
-         * streams them across the field and out the far side. */
-        {
-            int ax = vs_px - x, ay = vs_py - y;
-            int ad = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay);
-            if (ad < 1) ad = 1;
-            f->vx = (int8_t)(ax * 5 / ad);
-            f->vy = (int8_t)(ay * 5 / ad);
-            if (!f->vx && !f->vy) f->vy = 1;
-        }
-        /* brutes and elites only join from stage 3, so early stages read as a
-         * swarm of small things and later ones as an army */
+        vs_place_at_edge(f);
+        f->flash = 0;
         int roll = rnd(0, 99);
         f->kind = (uint8_t)(vs_stage >= 3 && roll < 18 ? 2 : (vs_stage >= 2 && roll < 45 ? 1 : 0));
         f->hp = (uint8_t)(f->kind == 2 ? 6 : (f->kind == 1 ? 3 : 1));
+        vs_aim(f, VS_WALK_SPD);
     }
 }
 
@@ -678,112 +641,134 @@ static void vs_kill_at(int i)
         vs_gem_t *g = &vs_gem[vs_gem_n++];
         g->x = f->x; g->y = f->y;
         g->vx = (int8_t)rnd(-2, 2); g->vy = (int8_t)rnd(-2, 2);
-        g->ttl = 240;
+        g->ttl = 200;
     }
     vs_kill++;
-    /* swap-remove keeps the live range packed, which is what makes 700+ enemies
-     * affordable: no free list, no holes, one array walk */
-    vs_foe[i] = vs_foe[--vs_foe_n];
+    vs_foe[i] = vs_foe[--vs_foe_n];             /* swap-remove, live range stays packed */
+}
+
+static void vs_reset(void)
+{
+    for (int i = 0; i < 64; i++) {
+        int t = (i * 4) % 64, q = t < 32 ? t : 63 - t;
+        int v = q * (64 - q) / 16;
+        if (i >= 16 && i < 48) v = -v;
+        vs_sn[i] = (int16_t)v;
+        vs_cs[i] = vs_sn[(i + 16) & 63];
+    }
+    vs_foe_n = vs_bul_n = vs_gem_n = 0;
+    vs_stage = 1; vs_kill = 0; vs_frame = 0; vs_acc = 0;
+    vs_px = SCREEN_W / 2; vs_py = SCREEN_H / 2 + 40;
+    vs_ph = 100; vs_flash = 0; vs_best = 0; vs_banner = 66;
+    vs_cam_x = 128; vs_cam_y = 72;
+    vs_gun_cd = 0; vs_knife_a = 0;
 }
 
 static void vs_update(void)
 {
     vs_frame++;
 
-    /* ---- stage clock: 4.5 s per stage, six stages, 27 s total ----
-     * The demo has 30 s for this scene, so the ramp has to be fast enough to
-     * reach the ceiling inside one take.  At 270 frames a viewer sees each stage
-     * fill up and then hand over; slower and the interesting half never happens
-     * on camera. */
     int st = vs_frame / VS_STAGE_FRAMES + 1;
     if (st > 6) st = 6;
     if (st != vs_stage) { vs_stage = st; vs_banner = 66; }
 
-    /* ---- spawn budget: fractional rate accumulated, not a per-frame count ---- */
+    /* fractional spawn budget, so 26.4 / s is expressible */
     vs_acc += vs_rate[vs_stage - 1];
     while (vs_acc >= 60) { vs_acc -= 60; vs_spawn(1); }
 
-    /* ---- player: an autorun path, because nobody is holding the stick ---- */
+    /* ---- camera: the map drifts, the character stays put.  A survivors-like
+     * plays on a map, and a map that never moves makes the ground look painted
+     * on the screen. ---- */
+    vs_cam_x = (vs_cam_x + 1) % 257;
+    vs_cam_y = (vs_cam_y + 1) % 145;
+
+    /* ---- player: small circle around the middle, on the ground ---- */
     {
-        int t = vs_frame / 2;
-        vs_px = SCREEN_W / 2 + 120 * vs_sn[(t / 7) & 63] / 64;
-        vs_py = SCREEN_H / 2 + 70 * vs_sn[(t / 11 + 12) & 63] / 64 + 30;
+        int t = vs_frame / 3;
+        vs_px = SCREEN_W / 2 + 90 * vs_sn[t & 63] / 64;
+        vs_py = SCREEN_H / 2 + 60 * vs_sn[(t / 3 + 20) & 63] / 64 + 30;
     }
     if (vs_flash > 0) vs_flash--;
 
-    /* ---- enemies: straight line toward the player ---- */
-    int spd = 1 + vs_stage / 3;
+    /* ---- enemies: own heading, re-aimed a few times a second.  Re-aiming every
+     * frame makes them reverse either side of the player and pile up into two
+     * dense lines along his row and column - that was the "cross" artefact. ---- */
+    int spd = VS_WALK_SPD + vs_stage / 3;
     for (int i = 0; i < vs_foe_n; i++) {
         vs_foe_t *f = &vs_foe[i];
+        if ((vs_frame + i) % 24 == 0) vs_aim(f, spd);
         f->x = (int16_t)(f->x + f->vx);
         f->y = (int16_t)(f->y + f->vy);
-        /* recycle off the far edge: the horde keeps flowing in one direction, so
-         * the screen never empties and nothing oscillates */
+        if (f->flash) f->flash--;
         if (f->x < -60 || f->x > SCREEN_W + 60 || f->y < -60 || f->y > SCREEN_H + 60) {
-            int per2 = (SCREEN_W + SCREEN_H) * 2;
-            int q = rnd(0, per2 - 1);
-            if (q < SCREEN_W) { f->x = (int16_t)q; f->y = -30; }
-            else if (q < SCREEN_W + SCREEN_H) { f->x = SCREEN_W + 30; f->y = (int16_t)(q - SCREEN_W); }
-            else if (q < SCREEN_W * 2 + SCREEN_H) { f->x = (int16_t)(q - SCREEN_W - SCREEN_H); f->y = SCREEN_H + 30; }
-            else { f->x = -30; f->y = (int16_t)(q - SCREEN_W * 2 - SCREEN_H); }
-            {
-                int ax = vs_px - f->x, ay = vs_py - f->y;
-                int ad = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay);
-                if (ad < 1) ad = 1;
-                f->vx = (int8_t)(ax * 5 / ad);
-                f->vy = (int8_t)(ay * 5 / ad);
-            }
+            vs_place_at_edge(f);                 /* never seen popping in */
+            vs_aim(f, spd);
         }
-        /* a per-enemy offset keeps the horde from collapsing into one pixel
-         * column, and costs two adds */
-        f->x = (int16_t)(f->x + (f->vx - 1));
-        f->y = (int16_t)(f->y + (f->vy - 1));
     }
 
-    /* ---- damage: aura blades, shock ring, picked strikes ---- */
+    /* ---- knife: orbits the player once every 1.7 s and hurts on contact ---- */
+    vs_knife_a = (vs_knife_a + 6) & 63;
     {
-        int blade_r = 62, blade_dmg_r = 16;
-        int a0 = (vs_frame * 4) & 63;
-        int bx[3], by[3];
-        for (int b = 0; b < 3; b++) {
-            int a = (a0 + b * 21) & 63;
-            bx[b] = vs_px + blade_r * vs_cs[a] / 64;
-            by[b] = vs_py + blade_r * vs_sn[a] / 64;
-        }
+        int ka = vs_knife_a & 63;
+        int kx = vs_px + 46 * vs_cs[ka] / 64;
+        int ky = vs_py + 46 * vs_sn[ka] / 64 - 8;
         for (int i = 0; i < vs_foe_n; i++) {
             vs_foe_t *f = &vs_foe[i];
-            int hit = 0;
-            for (int b = 0; b < 3 && !hit; b++) {
-                int dx = f->x - bx[b], dy = f->y - by[b];
-                if (dx * dx + dy * dy < blade_dmg_r * blade_dmg_r) hit = 1;
+            int dx = f->x - kx, dy = (f->y - 12) - ky;
+            if (dx * dx + dy * dy < 24 * 24) {
+                if (f->hp > 0) { f->hp--; f->flash = 3; }
+                if (f->hp == 0) { vs_kill_at(i); i--; }
             }
-            if (!hit && vs_burst > 0) {
-                int dx = f->x - vs_px, dy = f->y - vs_py;
-                int d2 = dx * dx + dy * dy;
-                int r = 30 + (24 - vs_burst) * 16;
-                int lo = r - 26, hi = r + 26;
-                if (d2 > lo * lo && d2 < hi * hi) hit = 1;
-            }
-            if (!hit) continue;
-            if (--f->hp == 0) { vs_kill_at(i); i--; }
         }
-        if (vs_burst > 0) vs_burst--;
     }
-    /* picked strikes: every 24 frames one random enemy takes a hit, which reads
-     * as lightning off screen and keeps the far side of the field busy */
-    if ((vs_frame & 23) == 0 && vs_foe_n > 8) {
-        int i = rnd(0, vs_foe_n - 1);
-        if (--vs_foe[i].hp == 0) vs_kill_at(i);
-    }
-    if ((vs_frame % 96) == 0) vs_burst = 24;
 
-    /* ---- contact damage: one tick every eight frames, whatever how many are
-     * touching.  Killing the toucher here (the obvious implementation) deleted
-     * the whole front rank every frame and the horde never grew. ---- */
+    /* ---- gun: picks the nearest enemy inside a cone and fires straight ---- */
+    if (--vs_gun_cd <= 0 && vs_bul_n + 1 <= VS_BUL_MAX) {
+        int best = -1, bd = 1 << 30;
+        for (int i = 0; i < vs_foe_n; i++) {
+            int dx = vs_foe[i].x - vs_px, dy = vs_foe[i].y - vs_py;
+            int d2 = dx * dx + dy * dy;
+            if (d2 < bd) { bd = d2; best = i; }
+        }
+        if (best >= 0) {
+            int dx = vs_foe[best].x - vs_px, dy = vs_foe[best].y - (vs_py - 12);
+            int d = vs_ilen(dx, dy);
+            vs_bul_t *b = &vs_bul[vs_bul_n++];
+            b->x = (int16_t)(vs_px + dx * 18 / d);
+            b->y = (int16_t)(vs_py - 12 + dy * 18 / d);
+            b->vx = (int8_t)(dx * 9 / d);
+            b->vy = (int8_t)(dy * 9 / d);
+            b->ttl = 40;
+        }
+        vs_gun_cd = 9;
+    }
+
+    /* bullets: straight line, hit test against the horde */
+    for (int i = 0; i < vs_bul_n; i++) {
+        vs_bul_t *b = &vs_bul[i];
+        b->x = (int16_t)(b->x + b->vx);
+        b->y = (int16_t)(b->y + b->vy);
+        int hit = 0;
+        for (int j = 0; j < vs_foe_n && !hit; j++) {
+            int dx = vs_foe[j].x - b->x, dy = (vs_foe[j].y - 12) - b->y;
+            if (dx * dx + dy * dy < 16 * 16) {
+                vs_foe[j].flash = 3;
+                if (--vs_foe[j].hp == 0) vs_kill_at(j);
+                hit = 1;
+            }
+        }
+        if (hit || --b->ttl == 0 ||
+            b->x < -8 || b->x > SCREEN_W + 8 || b->y < -8 || b->y > SCREEN_H + 8) {
+            vs_bul[i] = vs_bul[--vs_bul_n];
+            i--;
+        }
+    }
+
+    /* contact: one point every 24 frames whatever how many are touching */
     if ((vs_frame % 24) == 0) {
         for (int i = 0; i < vs_foe_n; i++) {
             int dx = vs_foe[i].x - vs_px, dy = vs_foe[i].y - vs_py;
-            if (dx * dx + dy * dy < 30 * 30) {
+            if (dx * dx + dy * dy < 26 * 26) {
                 if (vs_ph > 0) vs_ph--;
                 vs_flash = 10;
                 break;
@@ -791,51 +776,20 @@ static void vs_update(void)
         }
     }
 
-    /* ---- visual projectiles (no collision pass: they are the "shot" pattern) */
-    if ((vs_frame % 7) == 0 && vs_bul_n + 4 <= VS_BUL_MAX) {
-        int a0 = (vs_frame * 3) & 63;
-        for (int k = 0; k < 4; k++) {
-            int a = (a0 + k * 16) & 63;
-            vs_bul_t *b = &vs_bul[vs_bul_n++];
-            b->x = (int16_t)vs_px;
-            b->y = (int16_t)vs_py;
-            b->vx = (int8_t)(7 * vs_cs[a] / 64);
-            b->vy = (int8_t)(7 * vs_sn[a] / 64);
-            b->ttl = 60;
-            b->kind = (uint8_t)k;
-        }
-    }
-    for (int i = 0; i < vs_bul_n; i++) {
-        vs_bul_t *b = &vs_bul[i];
-        b->x = (int16_t)(b->x + b->vx);
-        b->y = (int16_t)(b->y + b->vy);
-        if (--b->ttl == 0 || b->x < -8 || b->x > SCREEN_W + 8 ||
-            b->y < -8 || b->y > SCREEN_H + 8) {
-            vs_bul[i] = vs_bul[--vs_bul_n];
-            i--;
-        }
-    }
-
-    /* ---- gems: drift, then chase once the player is close ---- */
+    /* gems: drift, then get pulled in */
     for (int i = 0; i < vs_gem_n; i++) {
         vs_gem_t *g = &vs_gem[i];
         int dx = vs_px - g->x, dy = vs_py - g->y;
         int d2 = dx * dx + dy * dy;
         if (d2 < 110 * 110) {
-            g->x = (int16_t)(g->x + (dx >> 3));
-            g->y = (int16_t)(g->y + (dy >> 3));
-        } else {
-            g->x = (int16_t)(g->x + g->vx / 3);
-            g->y = (int16_t)(g->y + g->vy / 3);
+            g->x = (int16_t)(g->x + (dx >> 4));
+            g->y = (int16_t)(g->y + (dy >> 4));
         }
-        if (d2 < 20 * 20 || --g->ttl == 0) {
+        if (d2 < 18 * 18 || --g->ttl == 0) {
             vs_gem[i] = vs_gem[--vs_gem_n];
             i--;
         }
     }
-
-    /* the census lives in vs_hw(): scene_hw_frame() clears g_sprites right
-     * before dispatch, so anything set from here is wiped before it is read */
 }
 
 static void vs_hw(void)
@@ -843,62 +797,37 @@ static void vs_hw(void)
     char b[40];
     char *p;
 
-    /* 12 bands rather than 24: a horde this dense hides the gradient anyway, and
-     * those 12 tasks are better spent on enemies */
-    for (int i = 0; i < 24; i++) {
-        int t = i;
-        int r = (2 * t) / 24;
-        int g = 1 + (3 * t) / 24;
-        int bl = 5 + (7 * t) / 24;
-        bb_fill(0, i * 30, SCREEN_W, 30, (uint16_t)((r << 11) | (g << 5) | bl), 0);
-    }
+    /* ---- ground: one COPY of a window out of the baked map ---- */
+    bb_copy(G_GROUND.addr + (uint32_t)vs_cam_y * G_GROUND.stride + (uint32_t)vs_cam_x * 2u,
+            G_GROUND.stride, 0, 0, SCREEN_W, SCREEN_H, 0);
 
-    /* gems first, they are the lowest layer */
     for (int i = 0; i < vs_gem_n; i++)
         bb_key(G_GEM.addr, G_GEM.stride, vs_gem[i].x, vs_gem[i].y,
                G_GEM.w, G_GEM.h, C_MAGENTA, 0);
 
-    /* horde */
+    /* horde: hit flash is a second, white sprite of the same silhouette */
     for (int i = 0; i < vs_foe_n; i++) {
-        const Spr *s = &G_SWARM[vs_foe[i].kind];
-        bb_key(s->addr, s->stride, vs_foe[i].x - s->w / 2, vs_foe[i].y - s->h / 2,
+        const vs_foe_t *f = &vs_foe[i];
+        const Spr *s = f->flash ? &G_ZOMB_HIT[f->kind] : &G_ZOMB[f->kind];
+        bb_key(s->addr, s->stride, f->x - s->w / 2, f->y - s->h + 6,
                s->w, s->h, C_MAGENTA, 0);
     }
 
-    /* shot pattern */
     for (int i = 0; i < vs_bul_n; i++) {
-        const Spr *s = &G_BUL[BK_R];
-        bb_key(s->addr, s->stride, vs_bul[i].x, vs_bul[i].y, s->w, s->h, C_MAGENTA, 0);
-    }
-
-    /* Shock ring: the engine blits 1:1, it cannot scale, so the three ring
-     * sprites are the animation - small, mid, large - and the size comes from
-     * which frame is picked, never from stretching one. */
-    if (vs_burst > 0) {
-        int f = vs_burst > 16 ? 0 : (vs_burst > 8 ? 1 : 2);
-        const Spr *s = &G_RING[f];
-        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h / 2,
+        const Spr *s = &G_SHOOT;
+        bb_key(s->addr, s->stride, vs_bul[i].x - s->w / 2, vs_bul[i].y - s->h / 2,
                s->w, s->h, C_MAGENTA, 0);
     }
 
-    /* blades + player */
+    /* ---- the character: feet on the ground, weapons drawn around it ---- */
     {
-        int a0 = (vs_frame * 4) & 63;
-        for (int b = 0; b < 3; b++) {
-            int a = (a0 + b * 21) & 63;
-            bb_key(G_BLADE.addr, G_BLADE.stride,
-                   vs_px + 62 * vs_cs[a] / 64 - G_BLADE.w / 2,
-                   vs_py + 62 * vs_sn[a] / 64 - G_BLADE.h / 2,
-                   G_BLADE.w, G_BLADE.h, C_MAGENTA, 0);
-        }
-    }
-    {
-        const Spr *s = &G_SHIP[vs_flash > 6 ? SHIP_HIT : SHIP_IDLE];
-        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h / 2,
+        int kx = vs_px + 46 * vs_cs[vs_knife_a & 63] / 64;
+        int ky = vs_py + 46 * vs_sn[vs_knife_a & 63] / 64 - 8;
+        const Spr *s = &G_HERO[vs_flash > 6 ? 1 : 0];
+        bb_key(G_KNIFE.addr, G_KNIFE.stride, kx - G_KNIFE.w / 2, ky - G_KNIFE.h / 2,
+               G_KNIFE.w, G_KNIFE.h, C_MAGENTA, 0);
+        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h + 8,
                s->w, s->h, C_MAGENTA, 0);
-        bb_key(G_FLAME[(vs_frame >> 1) % 3].addr, G_FLAME[0].stride,
-               vs_px - G_FLAME[0].w / 2, vs_py + s->h / 2 - 6,
-               G_FLAME[0].w, G_FLAME[0].h, C_MAGENTA, 0);
     }
 
     /* ---- HUD ---- */
@@ -913,12 +842,11 @@ static void vs_hw(void)
         q = app_u32(kill, (uint32_t)vs_kill); *q = 0;
         q = app_str(stg, "STAGE "); q = app_u32(q, (uint32_t)vs_stage); *q = 0;
 
-        kv[0].k = "FPS"; kv[0].v = fpsb; kv[0].vpal = (g_hw_fps >= 59u) ? PAL_GREEN : PAL_RED;
-        kv[1].k = "HORDE";      kv[1].v = foe;  kv[1].vpal = PAL_WHITE;
-        kv[2].k = "KILLS";      kv[2].v = kill; kv[2].vpal = PAL_CYAN;
+        kv[0].k = "FPS";   kv[0].v = fpsb; kv[0].vpal = (g_hw_fps >= 59u) ? PAL_GREEN : PAL_RED;
+        kv[1].k = "HORDE"; kv[1].v = foe;  kv[1].vpal = PAL_WHITE;
+        kv[2].k = "KILLS"; kv[2].v = kill; kv[2].vpal = PAL_CYAN;
         hw_card(UI_MARGIN, UI_TOP_Y + UI_TOP_H + 12, 0, "RUN", kv, 3);
 
-        /* stage banner, only for the first second and a half of a stage */
         if (vs_banner > 0) {
             char bt[16];
             char *r = app_str(bt, "STAGE "); r = app_u32(r, (uint32_t)vs_stage); *r = 0;
@@ -931,12 +859,10 @@ static void vs_hw(void)
         }
 
         hw_top("8  SURVIVORS   HORDE STRESS TEST");
-        /* stage number and hull state on the bottom bar: the card is too narrow
-         * for both, and this is the line a viewer reads first */
         if (vs_ph > 20) {
             char bb2[32];
             char *r2 = app_str(bb2, stg);
-            r2 = app_str(r2, "  OF 6   HULL "); r2 = app_u32(r2, (uint32_t)vs_ph); *r2 = 0;
+            r2 = app_str(r2, "  OF 6   HP "); r2 = app_u32(r2, (uint32_t)vs_ph); *r2 = 0;
             hw_bottom(bb2);
         } else {
             hw_bottom("HULL BREACH   STILL 60 FPS?");
@@ -944,8 +870,8 @@ static void vs_hw(void)
         hw_fps_plate();
     }
 
-    /* 24 background bands + 8 sprites of HUD framing */
-    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 24 + 8);
+    /* ground + HUD framing */
+    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 2 + 8);
     if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
 
@@ -953,8 +879,6 @@ int limit_best(void) { return vs_best; }
 
 static void vs_tick(void)
 {
-    /* nothing to probe any more: the load is scripted by stage.  The hook stays
-     * because the summary page reads the peak sprite count out of it. */
     if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
 

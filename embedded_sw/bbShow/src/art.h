@@ -75,6 +75,16 @@ extern Spr G_SWARM[3];      /* grunt / brute / elite   */
 extern Spr G_GEM;           /* experience pickup       */
 extern Spr G_BLADE;         /* orbiting aura blade     */
 
+/* Survivors scene, second design: a fake-3D (oblique) cast on a real map.
+ * G_ZOMB_HIT is the same silhouette in white, used for the hit flash - a colour
+ * change needs a second sprite because the engine blends nothing. */
+extern Spr G_HERO[2];       /* idle / hit              */
+extern Spr G_ZOMB[3];
+extern Spr G_ZOMB_HIT[3];
+extern Spr G_KNIFE;         /* melee, orbits the player */
+extern Spr G_SHOOT;         /* gun bullet              */
+extern Spr G_GROUND;        /* 1536x864 baked map      */
+
 /* Hand-painted pack (RUOK / Kenney, CC0) vs the procedural art.
  *
  * 0 = procedural.  The pack was wired up and measured, and at 720p its 64 px
