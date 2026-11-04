@@ -284,7 +284,9 @@ int main(void)
         static const int counts[N_SCENE] = { 0, 300, 0, 300, 0, 0, 0, 0, 0, 0 };
         char name[64];
         int  frames = (s == SCENE_DANMAKU) ? 900 : 30;
-        if (s == SCENE_LIMIT) frames = 300;      /* let the AIMD probe run */
+        /* the survivors scene runs 1620 frames of its own; snapshot each stage
+         * so the load curve can be checked without a board */
+        if (s == SCENE_LIMIT) frames = 1620;
 
         g_count   = counts[s] ? counts[s] : 1;
         g_cpu_ms  = cpu_ms[s] ? cpu_ms[s] : 38;  /* plausible numbers so the HUD looks right */
@@ -311,6 +313,12 @@ int main(void)
                 sprintf(name, "scene%d_%d.ppm", s, f);
                 write_ppm(name, back_page == FB0_ADDR ? FB1_ADDR : FB0_ADDR);
                 printf("  game frame %d written\n", f);
+            }
+            /* survivors: one snapshot per stage, at its last frame */
+            if (s == SCENE_LIMIT && f > 0 && ((f + 1) % 270) == 0) {
+                sprintf(name, "scene%d_%d.ppm", s, f);
+                write_ppm(name, back_page == FB0_ADDR ? FB1_ADDR : FB0_ADDR);
+                printf("  survivors stage %d: %ld sprites\n", (f + 1) / 270, (long)g_sprites);
             }
         }
 

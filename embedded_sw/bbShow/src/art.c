@@ -11,7 +11,11 @@
 #include "art.h"
 
 #define MAG        0xF81Fu
-#define ART_BASE   0x05000000u
+/* Sprite heap.  It used to start at 0x05000000, which is exactly CHK_SRC: the
+ * self-check scene wrote 160 KiB over the sprites, so anything drawn after
+ * scene 9 was corrupt.  0x04400000 is the gap between the CPU compare pages
+ * (end 0x04300000) and the picture strip (0x06000000). */
+#define ART_BASE   0x04400000u
 
 static uint32_t mem_delta;
 

@@ -575,6 +575,7 @@ static void summary_hw(void)
 #define VS_FOE_MAX   760
 #define VS_BUL_MAX   240
 #define VS_GEM_MAX   120
+#define VS_STAGE_FRAMES 270        /* 4.5 s at 60 fps */
 
 typedef struct { int16_t x, y; int8_t vx, vy; uint8_t hp; uint8_t kind; } vs_foe_t;
 typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl; uint8_t kind; } vs_bul_t;
@@ -622,7 +623,7 @@ static void vs_reset(void)
     vs_flash = 0;
     vs_best  = 0;
     vs_burst = 0;
-    vs_banner = 90;
+    vs_banner = 66;
 }
 
 static void vs_spawn(int n)
@@ -632,9 +633,13 @@ static void vs_spawn(int n)
         /* spawn on the ring that encloses the screen, so the horde always walks
          * in from outside the frame instead of popping into view */
         int a = rnd(0, 63);
-        int rad = (SCREEN_W > SCREEN_H ? SCREEN_W : SCREEN_H) / 2 + 40;
-        int x = SCREEN_W / 2 + rad * vs_cs[a] / 64;
-        int y = SCREEN_H / 2 + rad * vs_sn[a] / 64;
+        /* Spawn on a ring around the *player*, not the screen centre: the horde
+         * then closes in from every side, which is the genre's picture, and the
+         * field fills evenly instead of piling up wherever the drift left the
+         * player standing. */
+        int rad = 520;
+        int x = vs_px + rad * vs_cs[a] / 64;
+        int y = vs_py + rad * vs_sn[a] / 64;
         vs_foe_t *f = &vs_foe[vs_foe_n++];
         f->x = (int16_t)(x < -40 ? -40 : (x > SCREEN_W + 40 ? SCREEN_W + 40 : x));
         f->y = (int16_t)(y < -40 ? -40 : (y > SCREEN_H + 40 ? SCREEN_H + 40 : y));
@@ -667,10 +672,14 @@ static void vs_update(void)
 {
     vs_frame++;
 
-    /* ---- stage clock: 12 s per stage, six stages ---- */
-    int st = vs_frame / 720 + 1;
+    /* ---- stage clock: 4.5 s per stage, six stages, 27 s total ----
+     * The demo has 30 s for this scene, so the ramp has to be fast enough to
+     * reach the ceiling inside one take.  At 270 frames a viewer sees each stage
+     * fill up and then hand over; slower and the interesting half never happens
+     * on camera. */
+    int st = vs_frame / VS_STAGE_FRAMES + 1;
     if (st > 6) st = 6;
-    if (st != vs_stage) { vs_stage = st; vs_banner = 90; }
+    if (st != vs_stage) { vs_stage = st; vs_banner = 66; }
 
     /* ---- spawn budget: fractional rate accumulated, not a per-frame count ---- */
     vs_acc += vs_rate[vs_stage - 1];
@@ -689,8 +698,11 @@ static void vs_update(void)
     for (int i = 0; i < vs_foe_n; i++) {
         vs_foe_t *f = &vs_foe[i];
         int dx = vs_px - f->x, dy = vs_py - f->y;
-        if (dx > 1) f->x = (int16_t)(f->x + spd); else if (dx < -1) f->x = (int16_t)(f->x - spd);
-        if (dy > 1) f->y = (int16_t)(f->y + spd); else if (dy < -1) f->y = (int16_t)(f->y - spd);
+        int d2 = dx * dx + dy * dy;
+        if (d2 > 26 * 26) {                     /* stop when adjacent, stand still */
+            if (dx > 1) f->x = (int16_t)(f->x + spd); else if (dx < -1) f->x = (int16_t)(f->x - spd);
+            if (dy > 1) f->y = (int16_t)(f->y + spd); else if (dy < -1) f->y = (int16_t)(f->y - spd);
+        }
         /* a per-enemy offset keeps the horde from collapsing into one pixel
          * column, and costs two adds */
         f->x = (int16_t)(f->x + (f->vx - 1));
@@ -734,15 +746,17 @@ static void vs_update(void)
     }
     if ((vs_frame % 96) == 0) vs_burst = 24;
 
-    /* ---- contact damage ---- */
-    for (int i = 0; i < vs_foe_n; i++) {
-        vs_foe_t *f = &vs_foe[i];
-        int dx = f->x - vs_px, dy = f->y - vs_py;
-        if (dx * dx + dy * dy < 22 * 22) {
-            if (vs_ph > 0) vs_ph--;
-            vs_flash = 10;
-            vs_kill_at(i);
-            i--;
+    /* ---- contact damage: one tick every eight frames, whatever how many are
+     * touching.  Killing the toucher here (the obvious implementation) deleted
+     * the whole front rank every frame and the horde never grew. ---- */
+    if ((vs_frame % 24) == 0) {
+        for (int i = 0; i < vs_foe_n; i++) {
+            int dx = vs_foe[i].x - vs_px, dy = vs_foe[i].y - vs_py;
+            if (dx * dx + dy * dy < 30 * 30) {
+                if (vs_ph > 0) vs_ph--;
+                vs_flash = 10;
+                break;
+            }
         }
     }
 
@@ -827,12 +841,14 @@ static void vs_hw(void)
         bb_key(s->addr, s->stride, vs_bul[i].x, vs_bul[i].y, s->w, s->h, C_MAGENTA, 0);
     }
 
-    /* shock ring: the frame index picks the ring frame, so the expansion is the
-     * animation */
+    /* Shock ring: the engine blits 1:1, it cannot scale, so the three ring
+     * sprites are the animation - small, mid, large - and the size comes from
+     * which frame is picked, never from stretching one. */
     if (vs_burst > 0) {
-        const Spr *s = &G_RING[vs_burst > 16 ? 0 : (vs_burst > 8 ? 1 : 2)];
-        int r = 30 + (24 - vs_burst) * 16;
-        bb_key(s->addr, s->stride, vs_px - r, vs_py - r, r * 2, r * 2, C_MAGENTA, 0);
+        int f = vs_burst > 16 ? 0 : (vs_burst > 8 ? 1 : 2);
+        const Spr *s = &G_RING[f];
+        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h / 2,
+               s->w, s->h, C_MAGENTA, 0);
     }
 
     /* blades + player */
