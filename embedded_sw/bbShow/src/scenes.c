@@ -632,23 +632,41 @@ static void vs_spawn(int n)
         if (vs_foe_n >= vs_cap[vs_stage - 1]) return;
         /* spawn on the ring that encloses the screen, so the horde always walks
          * in from outside the frame instead of popping into view */
-        int a = rnd(0, 63);
-        /* Spawn on a ring around the *player*, not the screen centre: the horde
-         * then closes in from every side, which is the genre's picture, and the
-         * field fills evenly instead of piling up wherever the drift left the
-         * player standing. */
-        int rad = 520;
-        int x = vs_px + rad * vs_cs[a] / 64;
-        int y = vs_py + rad * vs_sn[a] / 64;
+        /* Uniform along the four edges, by perimeter length.  A random angle
+         * projected onto the border is NOT uniform on a 16:9 frame: the top and
+         * bottom edges are nearer the centre, so most spawns land there and the
+         * horde walks in as one vertical column. */
+        int per = (SCREEN_W + SCREEN_H) * 2;
+        int r = rnd(0, per - 1);
+        int x, y;
+        if (r < SCREEN_W) {                       /* top */
+            x = r;                  y = -28;
+        } else if (r < SCREEN_W + SCREEN_H) {     /* right */
+            x = SCREEN_W + 28;      y = r - SCREEN_W;
+        } else if (r < SCREEN_W * 2 + SCREEN_H) { /* bottom */
+            x = r - SCREEN_W - SCREEN_H;  y = SCREEN_H + 28;
+        } else {                                  /* left */
+            x = -28;                y = r - SCREEN_W * 2 - SCREEN_H;
+        }
         vs_foe_t *f = &vs_foe[vs_foe_n++];
         f->x = (int16_t)(x < -40 ? -40 : (x > SCREEN_W + 40 ? SCREEN_W + 40 : x));
         f->y = (int16_t)(y < -40 ? -40 : (y > SCREEN_H + 40 ? SCREEN_H + 40 : y));
-        f->vx = (int8_t)rnd(0, 3);
-        f->vy = (int8_t)rnd(0, 3);
+        /* Fixed heading, aimed at the player once at spawn and never updated.
+         * Re-aiming every frame makes enemies reverse around him and they end up
+         * oscillating into a cross pattern of two dead lines; a straight heading
+         * streams them across the field and out the far side. */
+        {
+            int ax = vs_px - x, ay = vs_py - y;
+            int ad = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay);
+            if (ad < 1) ad = 1;
+            f->vx = (int8_t)(ax * 5 / ad);
+            f->vy = (int8_t)(ay * 5 / ad);
+            if (!f->vx && !f->vy) f->vy = 1;
+        }
         /* brutes and elites only join from stage 3, so early stages read as a
          * swarm of small things and later ones as an army */
-        int r = rnd(0, 99);
-        f->kind = (uint8_t)(vs_stage >= 3 && r < 18 ? 2 : (vs_stage >= 2 && r < 45 ? 1 : 0));
+        int roll = rnd(0, 99);
+        f->kind = (uint8_t)(vs_stage >= 3 && roll < 18 ? 2 : (vs_stage >= 2 && roll < 45 ? 1 : 0));
         f->hp = (uint8_t)(f->kind == 2 ? 6 : (f->kind == 1 ? 3 : 1));
     }
 }
@@ -688,8 +706,8 @@ static void vs_update(void)
     /* ---- player: an autorun path, because nobody is holding the stick ---- */
     {
         int t = vs_frame / 2;
-        vs_px = SCREEN_W / 2 + 300 * vs_sn[(t / 3) & 63] / 64;
-        vs_py = SCREEN_H / 2 + 150 * vs_sn[(t / 5 + 12) & 63] / 64 + 40;
+        vs_px = SCREEN_W / 2 + 120 * vs_sn[(t / 7) & 63] / 64;
+        vs_py = SCREEN_H / 2 + 70 * vs_sn[(t / 11 + 12) & 63] / 64 + 30;
     }
     if (vs_flash > 0) vs_flash--;
 
@@ -697,11 +715,24 @@ static void vs_update(void)
     int spd = 1 + vs_stage / 3;
     for (int i = 0; i < vs_foe_n; i++) {
         vs_foe_t *f = &vs_foe[i];
-        int dx = vs_px - f->x, dy = vs_py - f->y;
-        int d2 = dx * dx + dy * dy;
-        if (d2 > 26 * 26) {                     /* stop when adjacent, stand still */
-            if (dx > 1) f->x = (int16_t)(f->x + spd); else if (dx < -1) f->x = (int16_t)(f->x - spd);
-            if (dy > 1) f->y = (int16_t)(f->y + spd); else if (dy < -1) f->y = (int16_t)(f->y - spd);
+        f->x = (int16_t)(f->x + f->vx);
+        f->y = (int16_t)(f->y + f->vy);
+        /* recycle off the far edge: the horde keeps flowing in one direction, so
+         * the screen never empties and nothing oscillates */
+        if (f->x < -60 || f->x > SCREEN_W + 60 || f->y < -60 || f->y > SCREEN_H + 60) {
+            int per2 = (SCREEN_W + SCREEN_H) * 2;
+            int q = rnd(0, per2 - 1);
+            if (q < SCREEN_W) { f->x = (int16_t)q; f->y = -30; }
+            else if (q < SCREEN_W + SCREEN_H) { f->x = SCREEN_W + 30; f->y = (int16_t)(q - SCREEN_W); }
+            else if (q < SCREEN_W * 2 + SCREEN_H) { f->x = (int16_t)(q - SCREEN_W - SCREEN_H); f->y = SCREEN_H + 30; }
+            else { f->x = -30; f->y = (int16_t)(q - SCREEN_W * 2 - SCREEN_H); }
+            {
+                int ax = vs_px - f->x, ay = vs_py - f->y;
+                int ad = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay);
+                if (ad < 1) ad = 1;
+                f->vx = (int8_t)(ax * 5 / ad);
+                f->vy = (int8_t)(ay * 5 / ad);
+            }
         }
         /* a per-enemy offset keeps the horde from collapsing into one pixel
          * column, and costs two adds */
@@ -803,9 +834,8 @@ static void vs_update(void)
         }
     }
 
-    /* sprite census for the summary page and the on-screen counter */
-    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 12 + 8);
-    if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
+    /* the census lives in vs_hw(): scene_hw_frame() clears g_sprites right
+     * before dispatch, so anything set from here is wiped before it is read */
 }
 
 static void vs_hw(void)
@@ -913,6 +943,10 @@ static void vs_hw(void)
         }
         hw_fps_plate();
     }
+
+    /* 24 background bands + 8 sprites of HUD framing */
+    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 24 + 8);
+    if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
 
 int limit_best(void) { return vs_best; }
