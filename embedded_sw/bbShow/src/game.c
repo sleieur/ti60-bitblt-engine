@@ -872,7 +872,9 @@ static void draw_bg(void)
     /* Furthest first: planet, then two nebula banks, then the star layers, then
      * the speed streaks.  Six depth cues out of six tasks plus the sprites that
      * were always there - the parallax is in the ordering, not in extra work. */
-    blit(&G_PLANET, 940, 168);
+    /* positioned so the whole ring fits on screen (the sprite is wider than the
+     * body because of it) and the disc stays clear of the score panel */
+    blit(&G_PLANET, 846, 150);
 
     blit(&G_NEB[0], 30, (int)((g_frame * 1 + 120) % (SCREEN_H + 500)) - 500);
     blit(&G_NEB[1], 830, (int)((g_frame * 2 + 700) % (SCREEN_H + 500)) - 500);

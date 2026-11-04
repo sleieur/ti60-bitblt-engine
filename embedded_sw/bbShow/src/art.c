@@ -784,50 +784,123 @@ static void build_nebulae(void)
     build_nebula(1, 0x7C1Du, 0x2FFFu, 0x0C7Fu, 0x0421u, 96, 150, 118);
 }
 
-/* A distant planet: the only thing in the scene that does not move.  It is
- * painted in horizontal bands, lit from the left, then flattened to the same
- * pixel grid as the ships so it does not look photo-real next to them. */
+/* ------------------------------------------------------------- gas giant ---
+ * A ringed gas giant: the only thing in the scene that does not move, so it has
+ * to carry the depth on its own.
+ *
+ * Three properties do the work:
+ *   - bands that bow with the sphere instead of running dead straight, which is
+ *     what separates "painted ball" from "planet" at 100 px across;
+ *   - a terminator, so the light has a direction and the sphere has a volume;
+ *   - a perspective ring, drawn in two passes around the body so the near half
+ *     crosses the disc and the far half disappears behind it.
+ */
 static void build_planet(void)
 {
-    /* Muted gas-giant bands.  The first attempt used magenta and white, which
-     * after quantisation looked like a beach ball; a planet has to sit behind
-     * the action, not compete with it. */
-    /* Brighter, warmer than the first pass: at this size the planet has to read
-     * as a lit sphere hanging in the dark, and a near-black one just reads as a
-     * hole in the starfield. */
-    const uint16_t band[5] = { 0x6B4Du, 0x8C71u, 0x9CF3u, 0xAD55u, 0x7BEFu };
+    static const int BAND_R[6] = { 226, 205, 186, 168, 148, 126 };
+    static const int BAND_G[6] = { 186, 163, 142, 124, 104,  86 };
+    static const int BAND_B[6] = { 132, 110,  94,  78,  64,  52 };
+
+    const int W = 420, H = 300;
+    const int cx = 210, cy = 150, R = 104;
+    const int rx = 205, ry = 46;              /* ring outline, near edge-on */
+
     Spr *s = &G_PLANET;
-    int R = 150, cx = 180, cy = 180;
-    *s = spr_new(360, 360, MAG);
+    *s = spr_new(W, H, MAG);
     int st = s->stride / 2;
     uint16_t *b = A(s->addr);
 
-    for (int y = 0; y < s->h; y++) {
-        int dy = y - cy;
-        if (dy < 0) dy = -dy;
-        if (dy > R) continue;
-        int hw = isqrt_i(R * R - dy * dy);
-        for (int x = cx - hw; x <= cx + hw; x++) {
-            int rel = y + (x - cx) / 6;               /* bands tilt with latitude */
-            uint16_t c = band[((rel / 16) % 5 + 5) % 5];
-            int lit = 255 - ((x - (cx - hw)) * 150) / (2 * hw + 1);   /* light from the left */
-            if (lit < 40) lit = 40;
-            b[y * st + x] = mix565(0x0000u, c, lit);
+    /* --- far half of the ring, above the planet's centre line --- */
+    for (int y = 0; y < cy; y++) {
+        for (int x = 0; x < W; x++) {
+            int nx = (x - cx) * 1000 / rx, ny = (y - cy) * 1000 / ry;
+            int d = isqrt_i(nx * nx + ny * ny);          /* 0 .. 1000 */
+            if (d < 610 || d > 1000) continue;
+            int seg = (d - 610) / 78;                    /* four gaps */
+            if (seg == 2) continue;
+            /* warm dust, not grey: the ring has to belong to the same planet as
+             * the tan bands, otherwise it reads as a separate object */
+            int tone = 120 + 60 * ((d * 7) & 3) / 3;
+            uint16_t c = mix565(0x0000u, (uint16_t)((23 << 11) | (30 << 5) | 18), tone);
+            if (((x + y) & 3) == 0) c = mix565(c, 0xFFFFu, 70);
+            b[y * st + x] = c;
         }
     }
-    /* thin crescent of atmosphere on the lit limb */
+
+    /* --- the body --- */
     for (int y = 0; y < s->h; y++) {
         int dy = y - cy;
-        if (dy < 0) dy = -dy;
-        if (dy > R) continue;
+        if (dy < -R || dy > R) continue;
         int hw = isqrt_i(R * R - dy * dy);
-        pset(s, cx - hw, y, 0x9FFFu);
-        pset(s, cx - hw + 1, y, 0x3E7Fu);
+        int dz2 = R * R - dy * dy;
+        for (int x = cx - hw; x <= cx + hw; x++) {
+            int dx = x - cx;
+            int dz = isqrt_i(dz2 - dx * dx);            /* < 0 never happens */
+
+            /* bands bow downwards at the limbs: the latitude of a point on a
+             * sphere is its height, not its y */
+            int lat = dy + dx * dx / (6 * R);
+            int idx = (lat + 600) / 34 % 6;
+            if (idx < 0) idx += 6;
+            uint16_t c = (uint16_t)((BAND_R[idx] >> 3 << 11) |
+                                    (BAND_G[idx] >> 2 << 5) |
+                                    (BAND_B[idx] >> 3));
+
+            /* Lambert with a light from the upper left and slightly behind.
+             * The dot product is scaled to 0..150 first: computing it directly in
+             * integers truncates to 0 or 1 across the whole disc, which paints the
+             * planet black and leaves only the rim lit. */
+            int lam = (-dx * 3 - dy * 2 + dz * 4) * 100 / (R * 6);
+            int k = 55 + lam * 4 / 3;
+            c = mix565(0x0000u, c, k > 255 ? 255 : (k < 25 ? 25 : k));
+
+            /* limb: cool rim light where the atmosphere thins out */
+            if (dz < 10) c = mix565(c, 0x9FFFu, 150 - dz * 12);
+            b[y * st + x] = c;
+        }
     }
-    /* No ink outline here: an outline on a 360 px disc quantises into a dotted
-     * white halo, which looked like a stray selection marquee.  The planet gets
-     * its edge from the terminator instead - it is already dark on the right. */
-    pixelate(s, 3);
+
+    /* --- near half of the ring, drawn over the disc --- */
+    for (int y = cy; y < s->h; y++) {
+        for (int x = 0; x < W; x++) {
+            int nx = (x - cx) * 1000 / rx, ny = (y - cy) * 1000 / ry;
+            int d = isqrt_i(nx * nx + ny * ny);
+            if (d < 610 || d > 1000) continue;
+            int seg = (d - 610) / 78;
+            if (seg == 2) continue;
+            int tone = 150 + 60 * ((d * 7) & 3) / 3;
+            uint16_t c = mix565(0x0000u, (uint16_t)((23 << 11) | (30 << 5) | 18), tone);
+            /* Where the near half crosses the disc it is backlit, not black: keep
+             * it warm but dim, so it reads as a translucent ring passing in front
+             * of the planet instead of a painted grey stripe. */
+            int dx = x - cx, dy = y - cy;
+            int dd = isqrt_i(dx * dx + dy * dy);
+            if (dd < R) c = mix565(0x0000u, c, 105);
+            if (((x + y) & 3) == 0) c = mix565(c, 0xFFFFu, 60);
+            b[y * st + x] = c;
+        }
+    }
+
+    /* Chunk it up to match the sprite grid, but average in RGB instead of
+     * snapping to the 16-colour sprite palette: that palette has no warm tones,
+     * so a tan gas giant came out grey. Blocks more than half empty stay empty,
+     * which keeps the limb from growing a fringe. */
+    for (int by = 0; by < s->h; by += 2) {
+        for (int bx = 0; bx < s->w; bx += 2) {
+            int rs = 0, gs = 0, bs = 0, n = 0;
+            for (int y = by; y < by + 2 && y < s->h; y++)
+                for (int x = bx; x < bx + 2 && x < s->w; x++) {
+                    uint16_t c = b[y * st + x];
+                    if (c == MAG) continue;
+                    rs += (c >> 11) & 31; gs += (c >> 5) & 63; bs += c & 31; n++;
+                }
+            uint16_t out = MAG;
+            if (n >= 3) out = (uint16_t)(((rs / n) << 11) | ((gs / n) << 5) | (bs / n));
+            for (int y = by; y < by + 2 && y < s->h; y++)
+                for (int x = bx; x < bx + 2 && x < s->w; x++)
+                    b[y * st + x] = out;
+        }
+    }
 }
 
 /* A kill has to *flash* before it scatters, otherwise the debris just appears.
