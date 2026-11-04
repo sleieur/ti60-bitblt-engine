@@ -347,23 +347,21 @@ static void poll_uart(void)
 
 /* Presentation order, independent of the scene ids.
  *
- * The survivors stress test opens the take and STARFALL follows it, because those
- * are the two scenes worth watching first: the horde shows what the engine can
- * carry, the boss fight shows what it is for.  Everything else follows.  Keeping
- * the order in a table instead of renumbering the scenes means the on-screen menu
- * numbers stay the ones people already know.
- *
- * Wrapping returns to the survivors scene, so a looping demo never lands on the
- * title card. */
+ * The run follows the menu order: title card, the four per-feature demos, the
+ * keyed-sprite scene, then the two heavy loads (STARFALL, then the survivors
+ * stress test) and finally self-check and summary.  Summary wraps back to the
+ * title card, so a looping demo restarts from the top.
+ * Keeping the order in a table instead of renumbering the scenes means the
+ * on-screen menu numbers stay the ones people already know. */
 static const uint8_t SCENE_ORDER[N_SCENE] = {
-    SCENE_LIMIT,        /* 8  survivors horde  */
-    SCENE_DANMAKU,      /* 7  STARFALL         */
     SCENE_INTRO,        /* 1  title menu       */
     SCENE_SPLIT_FILL,   /* 2                   */
     SCENE_SPLIT_COPY,   /* 3                   */
     SCENE_IMAGES,       /* 4                   */
     SCENE_ALPHA,        /* 5                   */
     SCENE_KEY,          /* 6                   */
+    SCENE_DANMAKU,      /* 7  STARFALL         */
+    SCENE_LIMIT,        /* 8  survivors horde  */
     SCENE_CHECK,        /* 9                   */
     SCENE_SUMMARY       /* 0                   */
 };
@@ -424,11 +422,12 @@ void main(void)
         bsp_printf("auto cycle ON: ");
         for (int i = 0; i < N_SCENE; i++)
             bsp_printf("%d%s ", SCENE_SEC[i], (i + 1 < N_SCENE) ? "" : "s\r\n");
-        bsp_printf("  total %d s, wraps to scene 2 after the summary\r\n", total);
+        bsp_printf("  total %d s, wraps to the title card after the summary\r\n", total);
     }
 
-    g_count = SCENE_COUNT[SCENE_INTRO];
-    goto_scene(SCENE_INTRO);
+    /* power-on lands on the title card, which is the first entry of the table */
+    g_count = SCENE_COUNT[SCENE_ORDER[0]];
+    goto_scene(SCENE_ORDER[0]);
 
     t_sec = clint_getTime(BSP_CLINT);
     last_frames = bb_frames();

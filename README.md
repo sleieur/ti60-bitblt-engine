@@ -64,7 +64,7 @@ flowchart LR
 |---|---|---|
 | 640×720 一帧 | 50~76 ms（7~8 Hz） | 1.49 ms（**60 FPS**） |
 | 一帧 16.7 ms 预算内 | 不足 1/3 帧 | **5 次整屏 COPY** 或 3 次整屏 ALPHA |
-| 60 FPS 同屏精灵 | < 100 | **1024**（峰值 1280） |
+| 60 FPS 同屏精灵 | < 100 | **933**（第 6 关 918 只时 48 FPS） |
 
 > 所有数字都可在板上复现：串口 115200 每秒打印 `hw / cpu / sprites / frames / sim`，屏幕左上角是 FPGA 内部硬件 FPS 计数器，不是软件估算。
 
@@ -100,8 +100,8 @@ SRC FIFO 1024×145 bit、DST FIFO 512×145 bit 把零散的行访问聚合成 12
 | 04 | IMAGES | 静态图与 GIF 由引擎逐帧 COPY 播放，CPU 不参与解码 |
 | 05 | ALPHA | α = 0/64/128/192/255 五档 + 8 路 0→255 扫描 |
 | 06 | COLOUR KEY | 300 个品红底精灵，屏上不出现一个品红像素 |
-| 07 | STARFALL | 弹幕游戏：三阶段 Boss、445 精灵、全程 60 FPS |
-| 08 | SPRITE LIMIT | AIMD 探针自动逼近 60 FPS 上限，掉帧立即回退 |
+| 07 | STARFALL | 弹幕游戏：三阶段 Boss、170~340 精灵、全程 60 FPS |
+| 08 | SURVIVORS | 六关尸潮压测，精灵由 400 只加到 900 只以上，峰值 933 只仍 60 FPS |
 | 09 | SELF CHECK | 四项各 40 960 像素、共 163 840 像素逐点比对，失配 0 |
 | 10 | SUMMARY | 实测指标汇总 + 三个关键词 |
 
@@ -112,10 +112,10 @@ SRC FIFO 1024×145 bit、DST FIFO 512×145 bit 把零散的行访问聚合成 12
 </tr>
 <tr>
 <td width="50%"><img src="docs/shot_alpha.jpg" alt="α 混合"><br><sub><b>05 ALPHA</b>：五档固定 α + 八路扫描</sub></td>
-<td width="50%"><img src="docs/shot_limit.jpg" alt="精灵极限"><br><sub><b>08 SPRITE LIMIT</b>：探针逼近 1024，峰值 1280</sub></td>
+<td width="50%"><img src="docs/shot_limit.jpg" alt="尸潮压测"><br><sub><b>08 SURVIVORS</b>：第 6 关 918 只掉到 48 FPS，峰值 933 只仍 60 FPS</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/shot_game.jpg" alt="弹幕游戏"><br><sub><b>07 STARFALL</b>：PHASE 3 弹幕 + 445 精灵</sub></td>
+<td width="50%"><img src="docs/shot_game.jpg" alt="弹幕游戏"><br><sub><b>07 STARFALL</b>：PHASE 2 弹幕 + 338 精灵</sub></td>
 <td width="50%"><img src="docs/shot_check.jpg" alt="自校验"><br><sub><b>09 SELF CHECK</b>：163 840 像素比对，失配 0</sub></td>
 </tr>
 </table>
@@ -176,16 +176,16 @@ gcc tools/host_preview.c -o hp && ./hp    # 输出 10 张 1280×720 PPM
 同一组图元、同一份数据，左半屏走 CPU 纯软件渲染、右半屏走硬件引擎，同屏并列跑。硬件加速最怕「快但画错」，这种并排对照让任何一处像素差异都无处躲藏；再叠加片上自校验（四项共 163 840 像素逐点比对），从「看起来对」升级为「逐像素可证」。
 
 **② 算力与像素解耦**
-CPU 只说「搬哪个矩形」，不再碰任何像素。渲染开销与屏幕分辨率、图元数量解绑 —— 加到 1024 个精灵，CPU 侧负载几乎不变，帧率仍是 60 FPS。
+CPU 只说「搬哪个矩形」，不再碰任何像素。渲染开销与屏幕分辨率、图元数量解绑 —— 加到 900 只以上的精灵，CPU 侧负载几乎不变，帧率仍是 60 FPS。
 
 **③ 帧预算自适应**
-AIMD 探针按 16.7 ms 的帧预算自动加减负载：加性增、乘性减，掉帧立即回退。实测在 KEY + ALPHA 同开时稳定在 1024 个精灵，峰值试探到 1280。
+软件每帧读硬件帧率，掉帧立即减半加点速率并清掉部分尸潮，帧率恢复后再逐步加量。实测尸潮压测在 933 只精灵时仍能跑满 60 FPS；第 6 关叠上 3 道激光后回落到 48~54 FPS，属于超出帧预算后的正常回退。
 
 ## 文档与视频
 
 - 设计报告（7 表 9 图）：[docs/异构2D图形渲染加速引擎-设计报告.docx](docs/异构2D图形渲染加速引擎-设计报告.docx)
 - 源码级说明：[docs/SOURCE_GUIDE.md](docs/SOURCE_GUIDE.md)
-- 演示视频（2 分 33 秒）：见 [Releases](../../releases)
+- 演示视频（2 分 35 秒）：见 [Releases](../../releases)
 
 ## 硬件平台
 

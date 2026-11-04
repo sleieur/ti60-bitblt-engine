@@ -60,6 +60,7 @@ G_HIT               0x24              build/obj_files/art.o
 g_cpu_ms            0x4               build/obj_files/scenes.o
 G_GROUND            0xc               build/obj_files/art.o
 G_ZOMB_HIT          0x24              build/obj_files/art.o
+G_BEAM              0x18              build/obj_files/art.o
 G_BOLT              0xc               build/obj_files/art.o
 game_bisect_mode    0x4               build/obj_files/game.o
 g_hw_fps            0x4               build/obj_files/scenes.o
@@ -77,7 +78,6 @@ G_GEM               0xc               build/obj_files/art.o
 G_ARM               0x18              build/obj_files/art.o
 G_BLADE             0xc               build/obj_files/art.o
 G_SWARM             0x24              build/obj_files/art.o
-G_LASER             0xc               build/obj_files/art.o
 g_count             0x4               build/obj_files/scenes.o
 g_frame             0x4               build/obj_files/scenes.o
 G_PB                0x18              build/obj_files/art.o
@@ -296,6 +296,7 @@ Discarded input sections
  .debug_macro   0x00000000      0x235 build/obj_files/game.o
  .debug_macro   0x00000000      0x11e build/obj_files/game.o
  .debug_macro   0x00000000       0x10 build/obj_files/game.o
+ .debug_macro   0x00000000       0x4c build/obj_files/game.o
  .group         0x00000000        0xc build/obj_files/hwt.o
  .group         0x00000000        0xc build/obj_files/hwt.o
  .group         0x00000000        0xc build/obj_files/hwt.o
@@ -347,6 +348,7 @@ Discarded input sections
  .debug_macro   0x00000000      0x235 build/obj_files/scenes.o
  .debug_macro   0x00000000      0x11e build/obj_files/scenes.o
  .debug_macro   0x00000000       0x10 build/obj_files/scenes.o
+ .debug_macro   0x00000000       0x4c build/obj_files/scenes.o
  .group         0x00000000        0xc build/obj_files/art.o
  .group         0x00000000        0xc build/obj_files/art.o
  .group         0x00000000        0xc build/obj_files/art.o
@@ -792,7 +794,7 @@ LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a
                 0x00001044                smp_unlock
                 0x000010c4                _init
 
-.text           0x000010c8     0xffd4
+.text           0x000010c8    0x10578
  *(.text.Proc_1)
  *(.text.Proc_2)
  *(.text.Proc_3)
@@ -1079,324 +1081,326 @@ LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a
  .text.alpha_moving
                 0x00007610       0x28 build/obj_files/scenes.o
  .text.vs_ilen  0x00007638       0x40 build/obj_files/scenes.o
- .text.vs_aim   0x00007678       0x84 build/obj_files/scenes.o
+ .text.vs_aim   0x00007678       0xbc build/obj_files/scenes.o
  .text.vs_place_at_edge
-                0x000076fc       0x9c build/obj_files/scenes.o
+                0x00007734       0xfc build/obj_files/scenes.o
  .text.vs_spawn
-                0x00007798      0x154 build/obj_files/scenes.o
+                0x00007830      0x130 build/obj_files/scenes.o
  .text.vs_kill_at
-                0x000078ec      0x118 build/obj_files/scenes.o
+                0x00007960      0x144 build/obj_files/scenes.o
  .text.vs_knives
-                0x00007a04       0x14 build/obj_files/scenes.o
+                0x00007aa4       0x14 build/obj_files/scenes.o
  .text.vs_lasers
-                0x00007a18       0x30 build/obj_files/scenes.o
+                0x00007ab8       0x30 build/obj_files/scenes.o
  .text.vs_has_bolt
-                0x00007a48       0x10 build/obj_files/scenes.o
+                0x00007ae8       0x10 build/obj_files/scenes.o
  .text.vs_gun_period
-                0x00007a58       0x3c build/obj_files/scenes.o
+                0x00007af8       0x3c build/obj_files/scenes.o
  .text.vs_gun_rounds
-                0x00007a94       0x1c build/obj_files/scenes.o
+                0x00007b34       0x1c build/obj_files/scenes.o
  .text.vs_wpn_name
-                0x00007ab0       0x6c build/obj_files/scenes.o
+                0x00007b50       0x6c build/obj_files/scenes.o
  .text.vs_reset
-                0x00007b1c      0x118 build/obj_files/scenes.o
+                0x00007bbc      0x120 build/obj_files/scenes.o
  .text.vs_update
-                0x00007c34      0xcbc build/obj_files/scenes.o
- .text.vs_tick  0x000088f0       0x28 build/obj_files/scenes.o
+                0x00007cdc     0x1010 build/obj_files/scenes.o
+ .text.vs_tick  0x00008cec       0x28 build/obj_files/scenes.o
  .text.limit_reset
-                0x00008918       0x18 build/obj_files/scenes.o
+                0x00008d14       0x18 build/obj_files/scenes.o
  .text.limit_update
-                0x00008930       0x18 build/obj_files/scenes.o
+                0x00008d2c       0x18 build/obj_files/scenes.o
  .text.limit_tick
-                0x00008948       0x18 build/obj_files/scenes.o
+                0x00008d44       0x18 build/obj_files/scenes.o
  .text.img_header
-                0x00008960       0x18 build/obj_files/scenes.o
+                0x00008d5c       0x18 build/obj_files/scenes.o
  .text.images_reset
-                0x00008978       0x80 build/obj_files/scenes.o
- .text.chk_p    0x000089f8       0x24 build/obj_files/scenes.o
+                0x00008d74       0x80 build/obj_files/scenes.o
+ .text.chk_p    0x00008df4       0x24 build/obj_files/scenes.o
  .text.chk_compare
-                0x00008a1c      0x120 build/obj_files/scenes.o
- .text.chk_pat  0x00008b3c       0x7c build/obj_files/scenes.o
+                0x00008e18      0x120 build/obj_files/scenes.o
+ .text.chk_pat  0x00008f38       0x7c build/obj_files/scenes.o
  .text.chk_fill_expect
-                0x00008bb8       0x6c build/obj_files/scenes.o
+                0x00008fb4       0x6c build/obj_files/scenes.o
  .text.images_cpu_note
-                0x00008c24       0x64 build/obj_files/scenes.o
+                0x00009020       0x64 build/obj_files/scenes.o
  .text.cpu_card
-                0x00008c88      0x210 build/obj_files/scenes.o
+                0x00009084      0x210 build/obj_files/scenes.o
  .text.cpu_bottom
-                0x00008e98       0x6c build/obj_files/scenes.o
+                0x00009294       0x6c build/obj_files/scenes.o
  .text.split_fill_cpu
-                0x00008f04      0x17c build/obj_files/scenes.o
+                0x00009300      0x17c build/obj_files/scenes.o
  .text.split_copy_cpu
-                0x00009080      0x16c build/obj_files/scenes.o
+                0x0000947c      0x16c build/obj_files/scenes.o
  .text.hw_panel
-                0x000091ec       0x24 build/obj_files/scenes.o
- .text.hw_rule  0x00009210       0x28 build/obj_files/scenes.o
+                0x000095e8       0x24 build/obj_files/scenes.o
+ .text.hw_rule  0x0000960c       0x28 build/obj_files/scenes.o
  .text.hw_fps_plate
-                0x00009238       0x34 build/obj_files/scenes.o
+                0x00009634       0x34 build/obj_files/scenes.o
  .text.hw_bottom
-                0x0000926c       0x5c build/obj_files/scenes.o
+                0x00009668       0x5c build/obj_files/scenes.o
  .text.intro_hw
-                0x000092c8      0x170 build/obj_files/scenes.o
- .text.hw_top   0x00009438       0x5c build/obj_files/scenes.o
- .text.hw_card  0x00009494      0x1dc build/obj_files/scenes.o
+                0x000096c4      0x170 build/obj_files/scenes.o
+ .text.hw_top   0x00009834       0x5c build/obj_files/scenes.o
+ .text.hw_card  0x00009890      0x1dc build/obj_files/scenes.o
  .text.split_fill_hw
-                0x00009670      0x184 build/obj_files/scenes.o
+                0x00009a6c      0x184 build/obj_files/scenes.o
  .text.split_copy_hw
-                0x000097f4      0x168 build/obj_files/scenes.o
- .text.key_hw   0x0000995c      0x250 build/obj_files/scenes.o
- .text.vs_hw    0x00009bac      0x6b0 build/obj_files/scenes.o
+                0x00009bf0      0x168 build/obj_files/scenes.o
+ .text.key_hw   0x00009d58      0x250 build/obj_files/scenes.o
+ .text.vs_hw    0x00009fa8      0x784 build/obj_files/scenes.o
  .text.limit_hw
-                0x0000a25c       0x18 build/obj_files/scenes.o
+                0x0000a72c       0x18 build/obj_files/scenes.o
  .text.alpha_hw
-                0x0000a274      0x1c0 build/obj_files/scenes.o
+                0x0000a744      0x1c0 build/obj_files/scenes.o
  .text.chk_wait
-                0x0000a434       0x48 build/obj_files/scenes.o
+                0x0000a904       0x48 build/obj_files/scenes.o
  .text.check_run
-                0x0000a47c      0x404 build/obj_files/scenes.o
+                0x0000a94c      0x404 build/obj_files/scenes.o
  .text.check_hw
-                0x0000a880      0x3d8 build/obj_files/scenes.o
+                0x0000ad50      0x3d8 build/obj_files/scenes.o
  .text.limit_best
-                0x0000ac58        0x8 build/obj_files/scenes.o
-                0x0000ac58                limit_best
+                0x0000b128        0x8 build/obj_files/scenes.o
+                0x0000b128                limit_best
  .text.summary_hw
-                0x0000ac60      0x3d0 build/obj_files/scenes.o
+                0x0000b130      0x3d0 build/obj_files/scenes.o
  .text.images_toggle_play
-                0x0000b030       0x14 build/obj_files/scenes.o
-                0x0000b030                images_toggle_play
+                0x0000b500       0x14 build/obj_files/scenes.o
+                0x0000b500                images_toggle_play
  .text.images_fps_step
-                0x0000b044       0x34 build/obj_files/scenes.o
-                0x0000b044                images_fps_step
+                0x0000b514       0x34 build/obj_files/scenes.o
+                0x0000b514                images_fps_step
  .text.images_next
-                0x0000b078       0x1c build/obj_files/scenes.o
-                0x0000b078                images_next
+                0x0000b548       0x1c build/obj_files/scenes.o
+                0x0000b548                images_next
  .text.images_advance
-                0x0000b094       0x64 build/obj_files/scenes.o
+                0x0000b564       0x64 build/obj_files/scenes.o
  .text.images_hw
-                0x0000b0f8      0x2b8 build/obj_files/scenes.o
+                0x0000b5c8      0x2b8 build/obj_files/scenes.o
  .text.images_cpu_band
-                0x0000b3b0      0x184 build/obj_files/scenes.o
-                0x0000b3b0                images_cpu_band
+                0x0000b880      0x184 build/obj_files/scenes.o
+                0x0000b880                images_cpu_band
  .text.scene_info
-                0x0000b534       0xa4 build/obj_files/scenes.o
-                0x0000b534                scene_info
+                0x0000ba04       0xa4 build/obj_files/scenes.o
+                0x0000ba04                scene_info
  .text.scene_is_split
-                0x0000b5d8        0xc build/obj_files/scenes.o
-                0x0000b5d8                scene_is_split
+                0x0000baa8        0xc build/obj_files/scenes.o
+                0x0000baa8                scene_is_split
  .text.scene_enter
-                0x0000b5e4      0x394 build/obj_files/scenes.o
-                0x0000b5e4                scene_enter
+                0x0000bab4      0x394 build/obj_files/scenes.o
+                0x0000bab4                scene_enter
  .text.scene_update
-                0x0000b978      0x4bc build/obj_files/scenes.o
-                0x0000b978                scene_update
+                0x0000be48      0x4bc build/obj_files/scenes.o
+                0x0000be48                scene_update
  .text.scene_cpu_begin_frame
-                0x0000be34       0xa8 build/obj_files/scenes.o
-                0x0000be34                scene_cpu_begin_frame
+                0x0000c304       0xa8 build/obj_files/scenes.o
+                0x0000c304                scene_cpu_begin_frame
  .text.scene_hw_frame
-                0x0000bedc       0xb0 build/obj_files/scenes.o
-                0x0000bedc                scene_hw_frame
+                0x0000c3ac       0xb0 build/obj_files/scenes.o
+                0x0000c3ac                scene_hw_frame
  .text.scene_cpu_band
-                0x0000bf8c       0x84 build/obj_files/scenes.o
-                0x0000bf8c                scene_cpu_band
+                0x0000c45c       0x84 build/obj_files/scenes.o
+                0x0000c45c                scene_cpu_band
  .text.scene_tick
-                0x0000c010       0x3c build/obj_files/scenes.o
-                0x0000c010                scene_tick
- .text.mix565   0x0000c04c       0xa0 build/obj_files/art.o
- .text.isqrt_i  0x0000c0ec       0x50 build/obj_files/art.o
- .text.spr_new  0x0000c13c       0x94 build/obj_files/art.o
- .text.pset     0x0000c1d0       0x44 build/obj_files/art.o
- .text.pdisc    0x0000c214       0xb8 build/obj_files/art.o
- .text.pring    0x0000c2cc       0xcc build/obj_files/art.o
- .text.pline    0x0000c398       0xdc build/obj_files/art.o
+                0x0000c4e0       0x3c build/obj_files/scenes.o
+                0x0000c4e0                scene_tick
+ .text.mix565   0x0000c51c       0xa0 build/obj_files/art.o
+ .text.isqrt_i  0x0000c5bc       0x50 build/obj_files/art.o
+ .text.spr_new  0x0000c60c       0x94 build/obj_files/art.o
+ .text.pset     0x0000c6a0       0x44 build/obj_files/art.o
+ .text.pdisc    0x0000c6e4       0xb8 build/obj_files/art.o
+ .text.pring    0x0000c79c       0xcc build/obj_files/art.o
+ .text.pline    0x0000c868       0xdc build/obj_files/art.o
  .text.mirror_x
-                0x0000c474       0x90 build/obj_files/art.o
- .text.qpal     0x0000c504       0xac build/obj_files/art.o
+                0x0000c944       0x90 build/obj_files/art.o
+ .text.qpal     0x0000c9d4       0xac build/obj_files/art.o
  .text.pixelate
-                0x0000c5b0      0x234 build/obj_files/art.o
+                0x0000ca80      0x234 build/obj_files/art.o
  .text.ink_outline
-                0x0000c7e4      0x164 build/obj_files/art.o
+                0x0000ccb4      0x164 build/obj_files/art.o
  .text.key_clean
-                0x0000c948       0x90 build/obj_files/art.o
- .text.arcade   0x0000c9d8       0x40 build/obj_files/art.o
+                0x0000ce18       0x90 build/obj_files/art.o
+ .text.arcade   0x0000cea8       0x40 build/obj_files/art.o
  .text.arcade_soft
-                0x0000ca18       0x18 build/obj_files/art.o
- .text.orb      0x0000ca30       0xf4 build/obj_files/art.o
+                0x0000cee8       0x18 build/obj_files/art.o
+ .text.orb      0x0000cf00       0xf4 build/obj_files/art.o
  .text.draw_hull
-                0x0000cb24      0x414 build/obj_files/art.o
+                0x0000cff4      0x414 build/obj_files/art.o
  .text.build_ships
-                0x0000cf38      0x46c build/obj_files/art.o
+                0x0000d408      0x46c build/obj_files/art.o
  .text.build_boss
-                0x0000d3a4      0x3c8 build/obj_files/art.o
+                0x0000d874      0x3c8 build/obj_files/art.o
  .text.build_bullets
-                0x0000d76c      0x650 build/obj_files/art.o
+                0x0000dc3c      0x650 build/obj_files/art.o
  .text.build_fx
-                0x0000ddbc      0x3f0 build/obj_files/art.o
+                0x0000e28c      0x3f0 build/obj_files/art.o
  .text.build_stars
-                0x0000e1ac      0x264 build/obj_files/art.o
- .text.lerp565  0x0000e410       0x98 build/obj_files/art.o
- .text.onoise   0x0000e4a8       0xa8 build/obj_files/art.o
+                0x0000e67c      0x264 build/obj_files/art.o
+ .text.lerp565  0x0000e8e0       0x98 build/obj_files/art.o
+ .text.onoise   0x0000e978       0xa8 build/obj_files/art.o
  .text.build_nebula
-                0x0000e550      0x29c build/obj_files/art.o
+                0x0000ea20      0x29c build/obj_files/art.o
  .text.build_nebulae
-                0x0000e7ec       0x78 build/obj_files/art.o
+                0x0000ecbc       0x78 build/obj_files/art.o
  .text.build_planet
-                0x0000e864      0x588 build/obj_files/art.o
+                0x0000ed34      0x588 build/obj_files/art.o
  .text.build_bloom
-                0x0000edec      0x1d0 build/obj_files/art.o
+                0x0000f2bc      0x1d0 build/obj_files/art.o
  .text.build_swarm
-                0x0000efbc      0x430 build/obj_files/art.o
+                0x0000f48c      0x430 build/obj_files/art.o
  .text.vs_shadow
-                0x0000f3ec       0xf0 build/obj_files/art.o
+                0x0000f8bc       0xf0 build/obj_files/art.o
  .text.build_hero
-                0x0000f4dc      0x384 build/obj_files/art.o
+                0x0000f9ac      0x384 build/obj_files/art.o
  .text.build_zombies
-                0x0000f860      0x3b4 build/obj_files/art.o
+                0x0000fd30      0x458 build/obj_files/art.o
  .text.build_mark
-                0x0000fc14      0x108 build/obj_files/art.o
+                0x00010188      0x108 build/obj_files/art.o
  .text.build_weapons
-                0x0000fd1c      0x4d4 build/obj_files/art.o
+                0x00010290      0x504 build/obj_files/art.o
  .text.build_ground
-                0x000101f0      0x4d8 build/obj_files/art.o
+                0x00010794      0x4d8 build/obj_files/art.o
  .text.build_streaks
-                0x000106c8      0x154 build/obj_files/art.o
+                0x00010c6c      0x154 build/obj_files/art.o
  .text.build_ui_texture
-                0x0001081c       0x64 build/obj_files/art.o
+                0x00010dc0       0x64 build/obj_files/art.o
  .text.art_set_delta
-                0x00010880        0x8 build/obj_files/art.o
-                0x00010880                art_set_delta
+                0x00010e24        0x8 build/obj_files/art.o
+                0x00010e24                art_set_delta
  .text.art_build
-                0x00010888      0x314 build/obj_files/art.o
-                0x00010888                art_build
+                0x00010e2c      0x314 build/obj_files/art.o
+                0x00010e2c                art_build
  .text.fb_set_base
-                0x00010b9c       0x28 build/obj_files/fb_driver.o
-                0x00010b9c                fb_set_base
+                0x00011140       0x28 build/obj_files/fb_driver.o
+                0x00011140                fb_set_base
  .text.fb_frame_size
-                0x00010bc4        0xc build/obj_files/fb_driver.o
-                0x00010bc4                fb_frame_size
+                0x00011168        0xc build/obj_files/fb_driver.o
+                0x00011168                fb_frame_size
  .text.fb_stride
-                0x00010bd0        0xc build/obj_files/fb_driver.o
-                0x00010bd0                fb_stride
+                0x00011174        0xc build/obj_files/fb_driver.o
+                0x00011174                fb_stride
  .text.fb_underflow
-                0x00010bdc       0x10 build/obj_files/fb_driver.o
-                0x00010bdc                fb_underflow
+                0x00011180       0x10 build/obj_files/fb_driver.o
+                0x00011180                fb_underflow
  .text.__udivdi3
-                0x00010bec      0x4b0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
-                0x00010bec                __udivdi3
+                0x00011190      0x4b0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+                0x00011190                __udivdi3
  *(.gnu.linkonce.t.*)
  *(.note.gnu.build-id)
 
-.rela.dyn       0x0001109c        0x0
+.rela.dyn       0x00011640        0x0
  .rela.text.prerender_cpu_half
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.goto_scene
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.cpu_slice
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.poll_uart
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.bb_fail
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.main
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.autopilot_move
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.draw_bg
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.draw_world
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.draw_ui
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.game_draw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.game_key
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.game_tick
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
+ .rela.text.vs_update
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.vs_tick
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.split_fill_cpu
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.split_copy_cpu
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.split_fill_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.split_copy_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.key_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.vs_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.alpha_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.check_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.summary_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.images_hw
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.images_cpu_band
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.scene_enter
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.scene_update
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.scene_hw_frame
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_ships
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_boss
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_bullets
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_fx
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_stars
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_nebula
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_planet
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_bloom
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_swarm
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_hero
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_zombies
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_mark
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_weapons
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_ground
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.build_streaks
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.art_build
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
- .rela.init     0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
+ .rela.init     0x00011640        0x0 build/obj_files/bitblt_driver.o
  .rela.text.__libc_init_array
-                0x0001109c        0x0 build/obj_files/bitblt_driver.o
+                0x00011640        0x0 build/obj_files/bitblt_driver.o
 
 .fini
  *(SORT_NONE(.fini))
                 [!provide]                        PROVIDE (__etext = .)
                 [!provide]                        PROVIDE (_etext = .)
                 [!provide]                        PROVIDE (etext = .)
-                0x0001109c                        . = ALIGN (0x4)
+                0x00011640                        . = ALIGN (0x4)
 
-.preinit_array  0x0001109c        0x0
-                0x0001109c                        PROVIDE (__preinit_array_start = .)
+.preinit_array  0x00011640        0x0
+                0x00011640                        PROVIDE (__preinit_array_start = .)
  *(.preinit_array)
-                0x0001109c                        PROVIDE (__preinit_array_end = .)
+                0x00011640                        PROVIDE (__preinit_array_end = .)
 
-.init_array     0x0001109c        0x0
-                0x0001109c                        PROVIDE (__init_array_start = .)
+.init_array     0x00011640        0x0
+                0x00011640                        PROVIDE (__init_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
  *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
-                0x0001109c                        PROVIDE (__init_array_end = .)
+                0x00011640                        PROVIDE (__init_array_end = .)
 
-.fini_array     0x0001109c        0x0
+.fini_array     0x00011640        0x0
                 [!provide]                        PROVIDE (__fini_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
  *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
@@ -1416,492 +1420,493 @@ LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a
  *(SORT_BY_NAME(.dtors.*))
  *(.dtors)
 
-.lalign         0x0001109c        0x0
-                0x0001109c                        PROVIDE (_data_lma = .)
+.lalign         0x00011640        0x0
+                0x00011640                        PROVIDE (_data_lma = .)
 
-.dalign         0x0001109c        0x0
-                0x0001109c                        PROVIDE (_data = .)
+.dalign         0x00011640        0x0
+                0x00011640                        PROVIDE (_data = .)
 
-.data           0x0001109c     0x1ab6
+.data           0x00011640     0x1aba
  *(.rdata)
  *(.rodata .rodata.*)
  .rodata.bsp_printHex.str1.4
-                0x0001109c      0xf83 build/obj_files/bitblt_driver.o
+                0x00011640      0xf93 build/obj_files/bitblt_driver.o
                                  0x11 (size before relaxing)
  .rodata.bsp_printHex_lower.str1.4
-                0x0001201f        0x0 build/obj_files/bitblt_driver.o
+                0x000125d3        0x0 build/obj_files/bitblt_driver.o
                                  0x11 (size before relaxing)
  .rodata.bsp_printf.str1.4
-                0x0001201f        0x0 build/obj_files/bitblt_driver.o
+                0x000125d3        0x0 build/obj_files/bitblt_driver.o
                                  0x49 (size before relaxing)
- *fill*         0x0001201f        0x1 
+ *fill*         0x000125d3        0x1 
  .rodata.bsp_printf
-                0x00012020       0x84 build/obj_files/bitblt_driver.o
+                0x000125d4       0x84 build/obj_files/bitblt_driver.o
  .rodata.check_params.str1.4
-                0x000120a4        0x0 build/obj_files/bitblt_driver.o
+                0x00012658        0x0 build/obj_files/bitblt_driver.o
                                  0x37 (size before relaxing)
  .rodata.ramp.0
-                0x000120a4        0xc build/obj_files/content.o
- .rodata.hue.1  0x000120b0       0x10 build/obj_files/content.o
+                0x00012658        0xc build/obj_files/content.o
+ .rodata.hue.1  0x00012664       0x10 build/obj_files/content.o
  .rodata.body.2
-                0x000120c0       0x10 build/obj_files/content.o
- .rodata.rim.3  0x000120d0       0x10 build/obj_files/content.o
+                0x00012674       0x10 build/obj_files/content.o
+ .rodata.rim.3  0x00012684       0x10 build/obj_files/content.o
  .rodata.body.4
-                0x000120e0       0x10 build/obj_files/content.o
- .rodata.rim.5  0x000120f0       0x10 build/obj_files/content.o
+                0x00012694       0x10 build/obj_files/content.o
+ .rodata.rim.5  0x000126a4       0x10 build/obj_files/content.o
  .rodata.bars.6
-                0x00012100       0x10 build/obj_files/content.o
+                0x000126b4       0x10 build/obj_files/content.o
  .rodata.bsp_printHex.str1.4
-                0x00012110        0x0 build/obj_files/main.o
+                0x000126c4        0x0 build/obj_files/main.o
                                  0x11 (size before relaxing)
  .rodata.bsp_printHex_lower.str1.4
-                0x00012110        0x0 build/obj_files/main.o
+                0x000126c4        0x0 build/obj_files/main.o
                                  0x11 (size before relaxing)
  .rodata.bsp_printf.str1.4
-                0x00012110        0x0 build/obj_files/main.o
+                0x000126c4        0x0 build/obj_files/main.o
                                  0x49 (size before relaxing)
  .rodata.bsp_printf
-                0x00012110       0x84 build/obj_files/main.o
+                0x000126c4       0x84 build/obj_files/main.o
  .rodata.goto_scene.str1.4
-                0x00012194        0x0 build/obj_files/main.o
+                0x00012748        0x0 build/obj_files/main.o
                                  0x17 (size before relaxing)
  .rodata.poll_uart.str1.4
-                0x00012194        0x0 build/obj_files/main.o
+                0x00012748        0x0 build/obj_files/main.o
                                  0xdf (size before relaxing)
  .rodata.poll_uart
-                0x00012194      0x1a4 build/obj_files/main.o
+                0x00012748      0x1a4 build/obj_files/main.o
  .rodata.bb_fail.str1.4
-                0x00012338        0x0 build/obj_files/main.o
+                0x000128ec        0x0 build/obj_files/main.o
                                  0x48 (size before relaxing)
  .rodata.main.str1.4
-                0x00012338        0x0 build/obj_files/main.o
-                                0x36e (size before relaxing)
+                0x000128ec        0x0 build/obj_files/main.o
+                                0x376 (size before relaxing)
  .rodata.SCENE_ORDER
-                0x00012338        0xa build/obj_files/main.o
- *fill*         0x00012342        0x2 
+                0x000128ec        0xa build/obj_files/main.o
+ *fill*         0x000128f6        0x2 
  .rodata.SCENE_COUNT
-                0x00012344       0x28 build/obj_files/main.o
+                0x000128f8       0x28 build/obj_files/main.o
  .rodata.CPU_BUF
-                0x0001236c        0xc build/obj_files/main.o
+                0x00012920        0xc build/obj_files/main.o
  .rodata.SCENE_SEC
-                0x00012378        0xa build/obj_files/main.o
- *fill*         0x00012382        0x2 
+                0x0001292c        0xa build/obj_files/main.o
+ *fill*         0x00012936        0x2 
  .rodata.FONT_GLYPHS
-                0x00012384      0x165 build/obj_files/font.o
-                0x00012384                FONT_GLYPHS
- *fill*         0x000124e9        0x3 
+                0x00012938      0x165 build/obj_files/font.o
+                0x00012938                FONT_GLYPHS
+ *fill*         0x00012a9d        0x3 
  .rodata.FONT_CHARS
-                0x000124ec       0x34 build/obj_files/font.o
-                0x000124ec                FONT_CHARS
+                0x00012aa0       0x34 build/obj_files/font.o
+                0x00012aa0                FONT_CHARS
  .rodata.draw_ui.str1.4
-                0x00012520        0x0 build/obj_files/game.o
+                0x00012ad4        0x0 build/obj_files/game.o
                                  0xa7 (size before relaxing)
  .rodata.game_key
-                0x00012520       0xe4 build/obj_files/game.o
- .rodata.COS_T  0x00012604       0x22 build/obj_files/game.o
- *fill*         0x00012626        0x2 
+                0x00012ad4       0xe4 build/obj_files/game.o
+ .rodata.COS_T  0x00012bb8       0x22 build/obj_files/game.o
+ *fill*         0x00012bda        0x2 
  .rodata.pal_color
-                0x00012628        0xc build/obj_files/hwt.o
+                0x00012bdc        0xc build/obj_files/hwt.o
  .rodata.vs_wpn_name.str1.4
-                0x00012634        0x0 build/obj_files/scenes.o
+                0x00012be8        0x0 build/obj_files/scenes.o
                                  0x58 (size before relaxing)
  .rodata.vs_wpn_name
-                0x00012634       0x18 build/obj_files/scenes.o
+                0x00012be8       0x18 build/obj_files/scenes.o
  .rodata.images_cpu_note.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x1e (size before relaxing)
  .rodata.split_fill_cpu.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x5c (size before relaxing)
  .rodata.split_copy_cpu.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x43 (size before relaxing)
  .rodata.intro_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x90 (size before relaxing)
  .rodata.split_fill_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x45 (size before relaxing)
  .rodata.split_copy_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x2c (size before relaxing)
  .rodata.key_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0x81 (size before relaxing)
  .rodata.vs_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
-                                 0x84 (size before relaxing)
+                0x00012c00        0x0 build/obj_files/scenes.o
+                                 0x8c (size before relaxing)
  .rodata.alpha_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0xa4 (size before relaxing)
  .rodata.check_run.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                   0xa (size before relaxing)
  .rodata.check_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0xb2 (size before relaxing)
  .rodata.summary_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0xe3 (size before relaxing)
  .rodata.images_hw.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                  0xc4 (size before relaxing)
  .rodata.images_cpu_band.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                   0xf (size before relaxing)
  .rodata.scene_info.str1.4
-                0x0001264c        0x0 build/obj_files/scenes.o
+                0x00012c00        0x0 build/obj_files/scenes.o
                                 0x191 (size before relaxing)
  .rodata.scene_info
-                0x0001264c       0x28 build/obj_files/scenes.o
+                0x00012c00       0x28 build/obj_files/scenes.o
  .rodata.scene_enter
-                0x00012674       0x24 build/obj_files/scenes.o
+                0x00012c28       0x24 build/obj_files/scenes.o
  .rodata.scene_update
-                0x00012698       0x20 build/obj_files/scenes.o
+                0x00012c4c       0x20 build/obj_files/scenes.o
  .rodata.scene_hw_frame
-                0x000126b8       0x28 build/obj_files/scenes.o
- .rodata.hx.4   0x000126e0       0x11 build/obj_files/scenes.o
- *fill*         0x000126f1        0x3 
- .rodata.pal.5  0x000126f4       0x20 build/obj_files/scenes.o
+                0x00012c6c       0x28 build/obj_files/scenes.o
+ .rodata.hx.4   0x00012c94       0x11 build/obj_files/scenes.o
+ *fill*         0x00012ca5        0x3 
+ .rodata.pal.5  0x00012ca8       0x20 build/obj_files/scenes.o
  .rodata.str1.4
-                0x00012714        0x0 build/obj_files/scenes.o
+                0x00012cc8        0x0 build/obj_files/scenes.o
                                 0x1e7 (size before relaxing)
- .rodata.vs_cap
-                0x00012714        0xc build/obj_files/scenes.o
  .rodata.vs_rate
-                0x00012720        0xc build/obj_files/scenes.o
+                0x00012cc8        0xc build/obj_files/scenes.o
  .rodata.INTRO_KEY
-                0x0001272c       0x24 build/obj_files/scenes.o
+                0x00012cd4       0x24 build/obj_files/scenes.o
  .rodata.INTRO_L
-                0x00012750       0x24 build/obj_files/scenes.o
+                0x00012cf8       0x24 build/obj_files/scenes.o
  .rodata.BAND_B.8
-                0x00012774       0x18 build/obj_files/art.o
+                0x00012d1c       0x18 build/obj_files/art.o
  .rodata.BAND_G.9
-                0x0001278c       0x18 build/obj_files/art.o
+                0x00012d34       0x18 build/obj_files/art.o
  .rodata.BAND_R.10
-                0x000127a4       0x18 build/obj_files/art.o
+                0x00012d4c       0x18 build/obj_files/art.o
  .rodata.FC_HALF
-                0x000127bc       0x40 build/obj_files/art.o
+                0x00012d64       0x40 build/obj_files/art.o
  .rodata.FB_HALF
-                0x000127fc       0x40 build/obj_files/art.o
+                0x00012da4       0x40 build/obj_files/art.o
  .rodata.FA_HALF
-                0x0001283c       0x40 build/obj_files/art.o
+                0x00012de4       0x40 build/obj_files/art.o
  .rodata.P_HALF
-                0x0001287c       0x40 build/obj_files/art.o
- .rodata.APAL   0x000128bc       0x20 build/obj_files/art.o
- .rodata        0x000128dc       0xa8 build/obj_files/art.o
+                0x00012e24       0x40 build/obj_files/art.o
+ .rodata.APAL   0x00012e64       0x20 build/obj_files/art.o
+ .rodata        0x00012e84       0xa8 build/obj_files/art.o
  .rodata.__clz_tab
-                0x00012984      0x100 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
-                0x00012984                __clz_tab
+                0x00012f2c      0x100 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
+                0x00012f2c                __clz_tab
  *(.gnu.linkonce.r.*)
  *(.data .data.*)
  .data.SCENE_NAME
-                0x00012a84       0x28 build/obj_files/scenes.o
-                0x00012a84                SCENE_NAME
+                0x0001302c       0x28 build/obj_files/scenes.o
+                0x0001302c                SCENE_NAME
  *(.gnu.linkonce.d.*)
-                0x00012ab0                        . = ALIGN (0x8)
- *fill*         0x00012aac        0x4 
-                0x000132a0                        PROVIDE (__global_pointer$ = (. + 0x7f0))
+                0x00013058                        . = ALIGN (0x8)
+ *fill*         0x00013054        0x4 
+                0x00013848                        PROVIDE (__global_pointer$ = (. + 0x7f0))
  *(.sdata .sdata.*)
- .sdata.cpu_rd  0x00012ab0        0x4 build/obj_files/main.o
+ .sdata.cpu_rd  0x00013058        0x4 build/obj_files/main.o
  .sdata.auto_cycle
-                0x00012ab4        0x4 build/obj_files/main.o
+                0x0001305c        0x4 build/obj_files/main.o
  .sdata.swr_base
-                0x00012ab8        0x4 build/obj_files/swr.o
+                0x00013060        0x4 build/obj_files/swr.o
  .sdata.clip_y1
-                0x00012abc        0x4 build/obj_files/swr.o
+                0x00013064        0x4 build/obj_files/swr.o
  .sdata.rnd_state
-                0x00012ac0        0x4 build/obj_files/game.o
+                0x00013068        0x4 build/obj_files/game.o
  .sdata.density
-                0x00012ac4        0x4 build/obj_files/game.o
+                0x0001306c        0x4 build/obj_files/game.o
  .sdata.autopilot
-                0x00012ac8        0x4 build/obj_files/game.o
+                0x00013070        0x4 build/obj_files/game.o
  .sdata.img_fps
-                0x00012acc        0x4 build/obj_files/scenes.o
+                0x00013074        0x4 build/obj_files/scenes.o
  .sdata.img_playing
-                0x00012ad0        0x4 build/obj_files/scenes.o
- .sdata.lcg_s   0x00012ad4        0x4 build/obj_files/scenes.o
- .sdata.g_top   0x00012ad8        0x4 build/obj_files/art.o
+                0x00013078        0x4 build/obj_files/scenes.o
+ .sdata.lcg_s   0x0001307c        0x4 build/obj_files/scenes.o
+ .sdata.g_top   0x00013080        0x4 build/obj_files/art.o
  *(.gnu.linkonce.s.*)
-                0x00012ae0                        . = ALIGN (0x8)
- *fill*         0x00012adc        0x4 
+                0x00013088                        . = ALIGN (0x8)
+ *fill*         0x00013084        0x4 
  *(.srodata.cst16)
  *(.srodata.cst8)
  *(.srodata.cst4)
  *(.srodata.cst2)
  *(.srodata .srodata.*)
  .srodata.col_big.0
-                0x00012ae0        0x4 build/obj_files/hwt.o
+                0x00013088        0x4 build/obj_files/hwt.o
  .srodata.vs_spd
-                0x00012ae4        0x3 build/obj_files/scenes.o
- *fill*         0x00012ae7        0x1 
+                0x0001308c        0x3 build/obj_files/scenes.o
+ *fill*         0x0001308f        0x1 
  .srodata.band.0
-                0x00012ae8        0x8 build/obj_files/art.o
- .srodata.PX.1  0x00012af0        0x8 build/obj_files/art.o
- .srodata.PR.2  0x00012af8        0x8 build/obj_files/art.o
- .srodata.PY.3  0x00012b00        0x8 build/obj_files/art.o
+                0x00013090        0x8 build/obj_files/art.o
+ .srodata.PX.1  0x00013098        0x8 build/obj_files/art.o
+ .srodata.PR.2  0x000130a0        0x8 build/obj_files/art.o
+ .srodata.PY.3  0x000130a8        0x8 build/obj_files/art.o
  .srodata.base.4
-                0x00012b08        0x6 build/obj_files/art.o
- *fill*         0x00012b0e        0x2 
+                0x000130b0        0x6 build/obj_files/art.o
+ *fill*         0x000130b6        0x2 
  .srodata.lite.5
-                0x00012b10        0x6 build/obj_files/art.o
- *fill*         0x00012b16        0x2 
+                0x000130b8        0x6 build/obj_files/art.o
+ *fill*         0x000130be        0x2 
  .srodata.body.6
-                0x00012b18        0x6 build/obj_files/art.o
- *fill*         0x00012b1e        0x2 
+                0x000130c0        0x6 build/obj_files/art.o
+ *fill*         0x000130c6        0x2 
  .srodata.lit.7
-                0x00012b20        0x6 build/obj_files/art.o
- *fill*         0x00012b26        0x2 
+                0x000130c8        0x6 build/obj_files/art.o
+ *fill*         0x000130ce        0x2 
  .srodata.DY.11
-                0x00012b28        0x4 build/obj_files/art.o
+                0x000130d0        0x4 build/obj_files/art.o
  .srodata.DX.12
-                0x00012b2c        0x4 build/obj_files/art.o
+                0x000130d4        0x4 build/obj_files/art.o
  .srodata.EY.13
-                0x00012b30        0x4 build/obj_files/art.o
+                0x000130d8        0x4 build/obj_files/art.o
  .srodata.EX.14
-                0x00012b34        0x4 build/obj_files/art.o
+                0x000130dc        0x4 build/obj_files/art.o
  .srodata.DY.15
-                0x00012b38        0x8 build/obj_files/art.o
+                0x000130e0        0x8 build/obj_files/art.o
  .srodata.DX.16
-                0x00012b40        0x8 build/obj_files/art.o
-                0x00012b52                        . = (. + 0xa)
- *fill*         0x00012b48        0xa 
-                0x00012b54                        . = ALIGN (0x4)
-                0x00012b54                        PROVIDE (_edata = .)
+                0x000130e8        0x8 build/obj_files/art.o
+                0x000130fa                        . = (. + 0xa)
+ *fill*         0x000130f0        0xa 
+                0x000130fc                        . = ALIGN (0x4)
+                0x000130fc                        PROVIDE (_edata = .)
                 [!provide]                        PROVIDE (edata = .)
                 [!provide]                        PROVIDE (_fbss = .)
-                0x00012b54                        PROVIDE (__bss_start = .)
+                0x000130fc                        PROVIDE (__bss_start = .)
 
-.bss            0x00012b58     0xaae4
+.bss            0x00013100     0xb11c
  *(.sbss*)
  .sbss.bad_dumped
-                0x00012b58        0x4 build/obj_files/bitblt_driver.o
- .sbss.bb_dead  0x00012b5c        0x4 build/obj_files/bitblt_driver.o
+                0x00013100        0x4 build/obj_files/bitblt_driver.o
+ .sbss.bb_dead  0x00013104        0x4 build/obj_files/bitblt_driver.o
  .sbss.mem_delta
-                0x00012b60        0x4 build/obj_files/content.o
- *fill*         0x00012b64        0x4 
- .sbss.t_scene  0x00012b68        0x8 build/obj_files/main.o
- .sbss.t_sec    0x00012b70        0x8 build/obj_files/main.o
+                0x00013108        0x4 build/obj_files/content.o
+ *fill*         0x0001310c        0x4 
+ .sbss.t_scene  0x00013110        0x8 build/obj_files/main.o
+ .sbss.t_sec    0x00013118        0x8 build/obj_files/main.o
  .sbss.cpu_done_last
-                0x00012b78        0x4 build/obj_files/main.o
+                0x00013120        0x4 build/obj_files/main.o
  .sbss.cpu_done
-                0x00012b7c        0x4 build/obj_files/main.o
+                0x00013124        0x4 build/obj_files/main.o
  .sbss.last_sim
-                0x00012b80        0x4 build/obj_files/main.o
+                0x00013128        0x4 build/obj_files/main.o
  .sbss.last_frames
-                0x00012b84        0x4 build/obj_files/main.o
- .sbss.hold     0x00012b88        0x4 build/obj_files/main.o
- .sbss.wipe     0x00012b8c        0x4 build/obj_files/main.o
- .sbss.cpu_wr   0x00012b90        0x4 build/obj_files/main.o
- *fill*         0x00012b94        0x4 
+                0x0001312c        0x4 build/obj_files/main.o
+ .sbss.hold     0x00013130        0x4 build/obj_files/main.o
+ .sbss.wipe     0x00013134        0x4 build/obj_files/main.o
+ .sbss.cpu_wr   0x00013138        0x4 build/obj_files/main.o
+ *fill*         0x0001313c        0x4 
  .sbss.cpu_accum
-                0x00012b98        0x8 build/obj_files/main.o
+                0x00013140        0x8 build/obj_files/main.o
  .sbss.cpu_ready
-                0x00012ba0        0x4 build/obj_files/main.o
+                0x00013148        0x4 build/obj_files/main.o
  .sbss.cpu_band
-                0x00012ba4        0x4 build/obj_files/main.o
+                0x0001314c        0x4 build/obj_files/main.o
  .sbss.cur_scene
-                0x00012ba8        0x4 build/obj_files/main.o
+                0x00013150        0x4 build/obj_files/main.o
  .sbss.mem_delta
-                0x00012bac        0x4 build/obj_files/swr.o
- .sbss.clip_y0  0x00012bb0        0x4 build/obj_files/swr.o
+                0x00013154        0x4 build/obj_files/swr.o
+ .sbss.clip_y0  0x00013158        0x4 build/obj_files/swr.o
  .sbss.last_tasks
-                0x00012bb4        0x4 build/obj_files/game.o
- .sbss.ntask    0x00012bb8        0x4 build/obj_files/game.o
- .sbss.sy       0x00012bbc        0x4 build/obj_files/game.o
- .sbss.sx       0x00012bc0        0x4 build/obj_files/game.o
- .sbss.ready_t  0x00012bc4        0x4 build/obj_files/game.o
+                0x0001315c        0x4 build/obj_files/game.o
+ .sbss.ntask    0x00013160        0x4 build/obj_files/game.o
+ .sbss.sy       0x00013164        0x4 build/obj_files/game.o
+ .sbss.sx       0x00013168        0x4 build/obj_files/game.o
+ .sbss.ready_t  0x0001316c        0x4 build/obj_files/game.o
  .sbss.gameover_t
-                0x00012bc8        0x4 build/obj_files/game.o
- .sbss.frozen   0x00012bcc        0x4 build/obj_files/game.o
- .sbss.manual   0x00012bd0        0x4 build/obj_files/game.o
+                0x00013170        0x4 build/obj_files/game.o
+ .sbss.frozen   0x00013174        0x4 build/obj_files/game.o
+ .sbss.manual   0x00013178        0x4 build/obj_files/game.o
  .sbss.clear_req
-                0x00012bd4        0x4 build/obj_files/game.o
- .sbss.clear_t  0x00012bd8        0x4 build/obj_files/game.o
- .sbss.flash    0x00012bdc        0x4 build/obj_files/game.o
- .sbss.shake    0x00012be0        0x4 build/obj_files/game.o
+                0x0001317c        0x4 build/obj_files/game.o
+ .sbss.clear_t  0x00013180        0x4 build/obj_files/game.o
+ .sbss.flash    0x00013184        0x4 build/obj_files/game.o
+ .sbss.shake    0x00013188        0x4 build/obj_files/game.o
  .sbss.boss_arrived
-                0x00012be4        0x4 build/obj_files/game.o
- .sbss.boss_y   0x00012be8        0x4 build/obj_files/game.o
- .sbss.boss_x   0x00012bec        0x4 build/obj_files/game.o
- .sbss.boss_t   0x00012bf0        0x4 build/obj_files/game.o
+                0x0001318c        0x4 build/obj_files/game.o
+ .sbss.boss_y   0x00013190        0x4 build/obj_files/game.o
+ .sbss.boss_x   0x00013194        0x4 build/obj_files/game.o
+ .sbss.boss_t   0x00013198        0x4 build/obj_files/game.o
  .sbss.boss_phase
-                0x00012bf4        0x4 build/obj_files/game.o
+                0x0001319c        0x4 build/obj_files/game.o
  .sbss.boss_maxhp
-                0x00012bf8        0x4 build/obj_files/game.o
- .sbss.boss_hp  0x00012bfc        0x4 build/obj_files/game.o
+                0x000131a0        0x4 build/obj_files/game.o
+ .sbss.boss_hp  0x000131a4        0x4 build/obj_files/game.o
  .sbss.boss_dying
-                0x00012c00        0x4 build/obj_files/game.o
+                0x000131a8        0x4 build/obj_files/game.o
  .sbss.boss_alive
-                0x00012c04        0x4 build/obj_files/game.o
- .sbss.spawn_t  0x00012c08        0x4 build/obj_files/game.o
- .sbss.stage    0x00012c0c        0x4 build/obj_files/game.o
- .sbss.wave_t   0x00012c10        0x4 build/obj_files/game.o
- .sbss.wave     0x00012c14        0x4 build/obj_files/game.o
- .sbss.deaths   0x00012c18        0x4 build/obj_files/game.o
- .sbss.graze    0x00012c1c        0x4 build/obj_files/game.o
- .sbss.hiscore  0x00012c20        0x4 build/obj_files/game.o
- .sbss.score    0x00012c24        0x4 build/obj_files/game.o
- .sbss.pdie_t   0x00012c28        0x4 build/obj_files/game.o
+                0x000131ac        0x4 build/obj_files/game.o
+ .sbss.spawn_t  0x000131b0        0x4 build/obj_files/game.o
+ .sbss.stage    0x000131b4        0x4 build/obj_files/game.o
+ .sbss.wave_t   0x000131b8        0x4 build/obj_files/game.o
+ .sbss.wave     0x000131bc        0x4 build/obj_files/game.o
+ .sbss.deaths   0x000131c0        0x4 build/obj_files/game.o
+ .sbss.graze    0x000131c4        0x4 build/obj_files/game.o
+ .sbss.hiscore  0x000131c8        0x4 build/obj_files/game.o
+ .sbss.score    0x000131cc        0x4 build/obj_files/game.o
+ .sbss.pdie_t   0x000131d0        0x4 build/obj_files/game.o
  .sbss.pshot_cd
-                0x00012c2c        0x4 build/obj_files/game.o
- .sbss.pdead    0x00012c30        0x4 build/obj_files/game.o
- .sbss.pinv     0x00012c34        0x4 build/obj_files/game.o
- .sbss.plives   0x00012c38        0x4 build/obj_files/game.o
- .sbss.pmaxhp   0x00012c3c        0x4 build/obj_files/game.o
- .sbss.php      0x00012c40        0x4 build/obj_files/game.o
- .sbss.pvx      0x00012c44        0x4 build/obj_files/game.o
- .sbss.py       0x00012c48        0x4 build/obj_files/game.o
- .sbss.px       0x00012c4c        0x4 build/obj_files/game.o
- .sbss.npt      0x00012c50        0x4 build/obj_files/game.o
- .sbss.nfo      0x00012c54        0x4 build/obj_files/game.o
- .sbss.npb      0x00012c58        0x4 build/obj_files/game.o
- .sbss.neb      0x00012c5c        0x4 build/obj_files/game.o
+                0x000131d4        0x4 build/obj_files/game.o
+ .sbss.pdead    0x000131d8        0x4 build/obj_files/game.o
+ .sbss.pinv     0x000131dc        0x4 build/obj_files/game.o
+ .sbss.plives   0x000131e0        0x4 build/obj_files/game.o
+ .sbss.pmaxhp   0x000131e4        0x4 build/obj_files/game.o
+ .sbss.php      0x000131e8        0x4 build/obj_files/game.o
+ .sbss.pvx      0x000131ec        0x4 build/obj_files/game.o
+ .sbss.py       0x000131f0        0x4 build/obj_files/game.o
+ .sbss.px       0x000131f4        0x4 build/obj_files/game.o
+ .sbss.npt      0x000131f8        0x4 build/obj_files/game.o
+ .sbss.nfo      0x000131fc        0x4 build/obj_files/game.o
+ .sbss.npb      0x00013200        0x4 build/obj_files/game.o
+ .sbss.neb      0x00013204        0x4 build/obj_files/game.o
  .sbss.mem_delta
-                0x00012c60        0x4 build/obj_files/hwt.o
+                0x00013208        0x4 build/obj_files/hwt.o
  .sbss.chk_tested_px
-                0x00012c64        0x4 build/obj_files/scenes.o
+                0x0001320c        0x4 build/obj_files/scenes.o
  .sbss.chk_bad_px
-                0x00012c68        0x4 build/obj_files/scenes.o
- .sbss.chk_ran  0x00012c6c        0x4 build/obj_files/scenes.o
+                0x00013210        0x4 build/obj_files/scenes.o
+ .sbss.chk_ran  0x00013214        0x4 build/obj_files/scenes.o
  .sbss.chk_total_bad
-                0x00012c70        0x4 build/obj_files/scenes.o
+                0x00013218        0x4 build/obj_files/scenes.o
  .sbss.chk_total_px
-                0x00012c74        0x4 build/obj_files/scenes.o
- .sbss.img_acc  0x00012c78        0x4 build/obj_files/scenes.o
+                0x0001321c        0x4 build/obj_files/scenes.o
+ .sbss.img_acc  0x00013220        0x4 build/obj_files/scenes.o
  .sbss.chk_delta
-                0x00012c7c        0x4 build/obj_files/scenes.o
+                0x00013224        0x4 build/obj_files/scenes.o
  .sbss.img_delta
-                0x00012c80        0x4 build/obj_files/scenes.o
+                0x00013228        0x4 build/obj_files/scenes.o
  .sbss.img_cpu_frame
-                0x00012c84        0x4 build/obj_files/scenes.o
- .sbss.img_cur  0x00012c88        0x4 build/obj_files/scenes.o
+                0x0001322c        0x4 build/obj_files/scenes.o
+ .sbss.img_cur  0x00013230        0x4 build/obj_files/scenes.o
  .sbss.img_count
-                0x00012c8c        0x4 build/obj_files/scenes.o
+                0x00013234        0x4 build/obj_files/scenes.o
+ .sbss.vs_peak  0x00013238        0x4 build/obj_files/scenes.o
+ .sbss.vs_probe
+                0x0001323c        0x4 build/obj_files/scenes.o
  .sbss.vs_knife_a
-                0x00012c90        0x4 build/obj_files/scenes.o
+                0x00013240        0x4 build/obj_files/scenes.o
  .sbss.vs_bolt_cd
-                0x00012c94        0x4 build/obj_files/scenes.o
+                0x00013244        0x4 build/obj_files/scenes.o
  .sbss.vs_laser_cd
-                0x00012c98        0x4 build/obj_files/scenes.o
+                0x00013248        0x4 build/obj_files/scenes.o
  .sbss.vs_gun_cd
-                0x00012c9c        0x4 build/obj_files/scenes.o
+                0x0001324c        0x4 build/obj_files/scenes.o
  .sbss.vs_banner
-                0x00012ca0        0x4 build/obj_files/scenes.o
- .sbss.vs_best  0x00012ca4        0x4 build/obj_files/scenes.o
+                0x00013250        0x4 build/obj_files/scenes.o
+ .sbss.vs_best  0x00013254        0x4 build/obj_files/scenes.o
  .sbss.vs_cam_y
-                0x00012ca8        0x4 build/obj_files/scenes.o
+                0x00013258        0x4 build/obj_files/scenes.o
  .sbss.vs_cam_x
-                0x00012cac        0x4 build/obj_files/scenes.o
+                0x0001325c        0x4 build/obj_files/scenes.o
  .sbss.vs_flash
-                0x00012cb0        0x4 build/obj_files/scenes.o
- .sbss.vs_ph    0x00012cb4        0x4 build/obj_files/scenes.o
- .sbss.vs_py    0x00012cb8        0x4 build/obj_files/scenes.o
- .sbss.vs_px    0x00012cbc        0x4 build/obj_files/scenes.o
- .sbss.vs_acc   0x00012cc0        0x4 build/obj_files/scenes.o
+                0x00013260        0x4 build/obj_files/scenes.o
+ .sbss.vs_ph    0x00013264        0x4 build/obj_files/scenes.o
+ .sbss.vs_py    0x00013268        0x4 build/obj_files/scenes.o
+ .sbss.vs_px    0x0001326c        0x4 build/obj_files/scenes.o
+ .sbss.vs_acc   0x00013270        0x4 build/obj_files/scenes.o
  .sbss.vs_frame
-                0x00012cc4        0x4 build/obj_files/scenes.o
- .sbss.vs_kill  0x00012cc8        0x4 build/obj_files/scenes.o
+                0x00013274        0x4 build/obj_files/scenes.o
+ .sbss.vs_kill  0x00013278        0x4 build/obj_files/scenes.o
  .sbss.vs_stage
-                0x00012ccc        0x4 build/obj_files/scenes.o
+                0x0001327c        0x4 build/obj_files/scenes.o
  .sbss.vs_wpn_n
-                0x00012cd0        0x4 build/obj_files/scenes.o
+                0x00013280        0x4 build/obj_files/scenes.o
  .sbss.vs_gem_n
-                0x00012cd4        0x4 build/obj_files/scenes.o
+                0x00013284        0x4 build/obj_files/scenes.o
  .sbss.vs_bul_n
-                0x00012cd8        0x4 build/obj_files/scenes.o
+                0x00013288        0x4 build/obj_files/scenes.o
  .sbss.vs_foe_n
-                0x00012cdc        0x4 build/obj_files/scenes.o
- .sbss.n_key    0x00012ce0        0x4 build/obj_files/scenes.o
- .sbss.cpu_img  0x00012ce4        0x4 build/obj_files/scenes.o
- .sbss.n_split  0x00012ce8        0x4 build/obj_files/scenes.o
- .sbss.repaint  0x00012cec        0x4 build/obj_files/scenes.o
- .sbss.cur      0x00012cf0        0x4 build/obj_files/scenes.o
+                0x0001328c        0x4 build/obj_files/scenes.o
+ .sbss.n_key    0x00013290        0x4 build/obj_files/scenes.o
+ .sbss.cpu_img  0x00013294        0x4 build/obj_files/scenes.o
+ .sbss.n_split  0x00013298        0x4 build/obj_files/scenes.o
+ .sbss.repaint  0x0001329c        0x4 build/obj_files/scenes.o
+ .sbss.cur      0x000132a0        0x4 build/obj_files/scenes.o
  .sbss.mem_delta
-                0x00012cf4        0x4 build/obj_files/art.o
+                0x000132a4        0x4 build/obj_files/art.o
  .sbss.page_addr
-                0x00012cf8        0x8 build/obj_files/fb_driver.o
+                0x000132a8        0x8 build/obj_files/fb_driver.o
  *(.gnu.linkonce.sb.*)
  *(.bss .bss.*)
- .bss.gdanger   0x00012d00      0x200 build/obj_files/game.o
- .bss.bg_band   0x00012f00       0x60 build/obj_files/game.o
- .bss.stk       0x00012f60       0x3c build/obj_files/game.o
- .bss.st        0x00012f9c      0x300 build/obj_files/game.o
- .bss.pt        0x0001329c      0x280 build/obj_files/game.o
- .bss.fo        0x0001351c       0xf0 build/obj_files/game.o
- .bss.pb        0x0001360c      0x280 build/obj_files/game.o
- .bss.eb        0x0001388c     0x1a40 build/obj_files/game.o
- .bss.hz.0      0x000152cc       0x10 build/obj_files/scenes.o
- .bss.ms.1      0x000152dc       0x10 build/obj_files/scenes.o
- .bss.hz.2      0x000152ec       0x10 build/obj_files/scenes.o
- .bss.ms.3      0x000152fc       0x10 build/obj_files/scenes.o
- .bss.chk       0x0001530c       0x50 build/obj_files/scenes.o
- .bss.vs_sn     0x0001535c       0x80 build/obj_files/scenes.o
- .bss.vs_cs     0x000153dc       0x80 build/obj_files/scenes.o
- .bss.vs_wpn    0x0001545c       0x30 build/obj_files/scenes.o
- .bss.vs_gem    0x0001548c      0x240 build/obj_files/scenes.o
- .bss.vs_bul    0x000156cc      0x1c0 build/obj_files/scenes.o
- .bss.vs_foe    0x0001588c     0x19c8 build/obj_files/scenes.o
- .bss.mobj      0x00017254       0x80 build/obj_files/scenes.o
- .bss.kobj      0x000172d4     0x1000 build/obj_files/scenes.o
+ .bss.gdanger   0x000132b0      0x200 build/obj_files/game.o
+ .bss.bg_band   0x000134b0       0x60 build/obj_files/game.o
+ .bss.stk       0x00013510       0x3c build/obj_files/game.o
+ .bss.st        0x0001354c      0x300 build/obj_files/game.o
+ .bss.pt        0x0001384c      0x280 build/obj_files/game.o
+ .bss.fo        0x00013acc       0xf0 build/obj_files/game.o
+ .bss.pb        0x00013bbc      0x280 build/obj_files/game.o
+ .bss.eb        0x00013e3c     0x13b0 build/obj_files/game.o
+ .bss.hz.0      0x000151ec       0x10 build/obj_files/scenes.o
+ .bss.ms.1      0x000151fc       0x10 build/obj_files/scenes.o
+ .bss.hz.2      0x0001520c       0x10 build/obj_files/scenes.o
+ .bss.ms.3      0x0001521c       0x10 build/obj_files/scenes.o
+ .bss.chk       0x0001522c       0x50 build/obj_files/scenes.o
+ .bss.vs_sn     0x0001527c       0x80 build/obj_files/scenes.o
+ .bss.vs_cs     0x000152fc       0x80 build/obj_files/scenes.o
+ .bss.vs_wpn    0x0001537c       0x40 build/obj_files/scenes.o
+ .bss.vs_gem    0x000153bc      0x240 build/obj_files/scenes.o
+ .bss.vs_bul    0x000155fc      0x180 build/obj_files/scenes.o
+ .bss.vs_foe    0x0001577c     0x26ac build/obj_files/scenes.o
+ .bss.mobj      0x00017e28       0x80 build/obj_files/scenes.o
+ .bss.kobj      0x00017ea8     0x1000 build/obj_files/scenes.o
  .bss.sobj_snap
-                0x000182d4     0x2800 build/obj_files/scenes.o
- .bss.sobj      0x0001aad4     0x2800 build/obj_files/scenes.o
- .bss           0x0001d2d4        0x8 build/obj_files/start.o
-                0x0001d2d4                smp_lottery_target
-                0x0001d2d8                smp_lottery_lock
+                0x00018ea8     0x2800 build/obj_files/scenes.o
+ .bss.sobj      0x0001b6a8     0x2800 build/obj_files/scenes.o
+ .bss           0x0001dea8        0x8 build/obj_files/start.o
+                0x0001dea8                smp_lottery_target
+                0x0001deac                smp_lottery_lock
  *(.gnu.linkonce.b.*)
  *(COMMON)
- COMMON         0x0001d2dc        0x4 build/obj_files/game.o
-                0x0001d2dc                game_bisect_mode
- COMMON         0x0001d2e0       0x1c build/obj_files/scenes.o
-                0x0001d2e0                g_cpu_ms
-                0x0001d2e4                g_hw_fps
-                0x0001d2e8                g_sprites
-                0x0001d2ec                g_cpu_hz
-                0x0001d2f0                g_max_sprites
-                0x0001d2f4                g_count
-                0x0001d2f8                g_frame
- COMMON         0x0001d2fc      0x340 build/obj_files/art.o
-                0x0001d2fc                G_NEB
-                0x0001d314                G_ZOMB
-                0x0001d338                G_BUL
-                0x0001d3b0                G_STREAK
-                0x0001d3c8                G_BLOOM
-                0x0001d3e0                G_KNIFE
-                0x0001d3ec                G_BOSS
-                0x0001d404                G_MARK
-                0x0001d410                art_pack_loaded
-                0x0001d414                G_RING
-                0x0001d438                G_HIT
-                0x0001d45c                G_GROUND
-                0x0001d468                G_ZOMB_HIT
-                0x0001d48c                G_BOLT
-                0x0001d498                G_FLAME
-                0x0001d4bc                G_SHIP
-                0x0001d4ec                G_STAR
-                0x0001d51c                G_BOOM
-                0x0001d564                G_SHOOT
-                0x0001d57c                G_FOE
-                0x0001d5a0                G_HERO
-                0x0001d5b8                G_GEM
-                0x0001d5c4                G_ARM
-                0x0001d5dc                G_BLADE
-                0x0001d5e8                G_SWARM
-                0x0001d60c                G_LASER
-                0x0001d618                G_PB
-                0x0001d630                G_PLANET
-                0x0001d63c                        . = ALIGN (0x4)
-                0x0001d640                        . = ALIGN (0x8)
-                0x0001d640                        PROVIDE (_end = .)
-                0x0001d640                        PROVIDE (end = .)
+ COMMON         0x0001deb0        0x4 build/obj_files/game.o
+                0x0001deb0                game_bisect_mode
+ COMMON         0x0001deb4       0x1c build/obj_files/scenes.o
+                0x0001deb4                g_cpu_ms
+                0x0001deb8                g_hw_fps
+                0x0001debc                g_sprites
+                0x0001dec0                g_cpu_hz
+                0x0001dec4                g_max_sprites
+                0x0001dec8                g_count
+                0x0001decc                g_frame
+ COMMON         0x0001ded0      0x34c build/obj_files/art.o
+                0x0001ded0                G_NEB
+                0x0001dee8                G_ZOMB
+                0x0001df0c                G_BUL
+                0x0001df84                G_STREAK
+                0x0001df9c                G_BLOOM
+                0x0001dfb4                G_KNIFE
+                0x0001dfc0                G_BOSS
+                0x0001dfd8                G_MARK
+                0x0001dfe4                art_pack_loaded
+                0x0001dfe8                G_RING
+                0x0001e00c                G_HIT
+                0x0001e030                G_GROUND
+                0x0001e03c                G_ZOMB_HIT
+                0x0001e060                G_BEAM
+                0x0001e078                G_BOLT
+                0x0001e084                G_FLAME
+                0x0001e0a8                G_SHIP
+                0x0001e0d8                G_STAR
+                0x0001e108                G_BOOM
+                0x0001e150                G_SHOOT
+                0x0001e168                G_FOE
+                0x0001e18c                G_HERO
+                0x0001e1a4                G_GEM
+                0x0001e1b0                G_ARM
+                0x0001e1c8                G_BLADE
+                0x0001e1d4                G_SWARM
+                0x0001e1f8                G_PB
+                0x0001e210                G_PLANET
+                0x0001e21c                        . = ALIGN (0x4)
+                0x0001e220                        . = ALIGN (0x8)
+                0x0001e220                        PROVIDE (_end = .)
+                0x0001e220                        PROVIDE (end = .)
 
-.stack          0x0001d640     0x1000
+.stack          0x0001e220     0x1000
                 [!provide]                        PROVIDE (_heap_end = .)
                 0x00001000                        . = __stack_size
- *fill*         0x0001d640     0x1000 
-                0x0001e640                        PROVIDE (_sp = .)
-                0x0001e640                        __freertos_irq_stack_top = .
+ *fill*         0x0001e220     0x1000 
+                0x0001f220                        PROVIDE (_sp = .)
+                0x0001f220                        __freertos_irq_stack_top = .
 LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/../../../../riscv-none-elf/lib/rv32im/ilp32\libm.a
 LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a
 START GROUP
@@ -1915,7 +1920,7 @@ LOAD D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/../../../../riscv-none-elf/li
 END GROUP
 OUTPUT(build/bbShow.elf elf32-littleriscv)
 
-.debug_info     0x00000000    0x125b7
+.debug_info     0x00000000    0x1285c
  .debug_info    0x00000000     0x16b0 build/obj_files/bitblt_driver.o
  .debug_info    0x000016b0      0xc91 build/obj_files/content.o
  .debug_info    0x00002341     0x19e4 build/obj_files/main.o
@@ -1923,14 +1928,14 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_info    0x00004677      0x19c build/obj_files/font.o
  .debug_info    0x00004813     0x2b80 build/obj_files/game.o
  .debug_info    0x00007393      0x744 build/obj_files/hwt.o
- .debug_info    0x00007ad7     0x4e9d build/obj_files/scenes.o
- .debug_info    0x0000c974     0x4ec4 build/obj_files/art.o
- .debug_info    0x00011838      0x50d build/obj_files/fb_driver.o
- .debug_info    0x00011d45       0x25 build/obj_files/start.o
- .debug_info    0x00011d6a      0x767 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
- .debug_info    0x000124d1       0xe6 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
+ .debug_info    0x00007ad7     0x506a build/obj_files/scenes.o
+ .debug_info    0x0000cb41     0x4f9c build/obj_files/art.o
+ .debug_info    0x00011add      0x50d build/obj_files/fb_driver.o
+ .debug_info    0x00011fea       0x25 build/obj_files/start.o
+ .debug_info    0x0001200f      0x767 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+ .debug_info    0x00012776       0xe6 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
 
-.debug_abbrev   0x00000000     0x1db5
+.debug_abbrev   0x00000000     0x1dc4
  .debug_abbrev  0x00000000      0x2e3 build/obj_files/bitblt_driver.o
  .debug_abbrev  0x000002e3      0x255 build/obj_files/content.o
  .debug_abbrev  0x00000538      0x3eb build/obj_files/main.o
@@ -1938,15 +1943,15 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_abbrev  0x00000b0f       0xee build/obj_files/font.o
  .debug_abbrev  0x00000bfd      0x3d7 build/obj_files/game.o
  .debug_abbrev  0x00000fd4      0x1e2 build/obj_files/hwt.o
- .debug_abbrev  0x000011b6      0x462 build/obj_files/scenes.o
- .debug_abbrev  0x00001618      0x413 build/obj_files/art.o
- .debug_abbrev  0x00001a2b      0x16d build/obj_files/fb_driver.o
- .debug_abbrev  0x00001b98       0x14 build/obj_files/start.o
- .debug_abbrev  0x00001bac      0x199 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
- .debug_abbrev  0x00001d45       0x70 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
+ .debug_abbrev  0x000011b6      0x471 build/obj_files/scenes.o
+ .debug_abbrev  0x00001627      0x413 build/obj_files/art.o
+ .debug_abbrev  0x00001a3a      0x16d build/obj_files/fb_driver.o
+ .debug_abbrev  0x00001ba7       0x14 build/obj_files/start.o
+ .debug_abbrev  0x00001bbb      0x199 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+ .debug_abbrev  0x00001d54       0x70 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
 
 .debug_loclists
-                0x00000000     0xa179
+                0x00000000     0xa9a2
  .debug_loclists
                 0x00000000      0xfab build/obj_files/bitblt_driver.o
  .debug_loclists
@@ -1962,13 +1967,13 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_loclists
                 0x000040de      0x3d7 build/obj_files/hwt.o
  .debug_loclists
-                0x000044b5     0x207f build/obj_files/scenes.o
+                0x000044b5     0x292e build/obj_files/scenes.o
  .debug_loclists
-                0x00006534     0x305a build/obj_files/art.o
+                0x00006de3     0x2fd4 build/obj_files/art.o
  .debug_loclists
-                0x0000958e      0x19e build/obj_files/fb_driver.o
+                0x00009db7      0x19e build/obj_files/fb_driver.o
  .debug_loclists
-                0x0000972c      0xa4d D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+                0x00009f55      0xa4d D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
 
 .debug_aranges  0x00000000      0x918
  .debug_aranges
@@ -1999,7 +2004,7 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
                 0x00000900       0x18 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
 
 .debug_rnglists
-                0x00000000     0x1680
+                0x00000000     0x169f
  .debug_rnglists
                 0x00000000       0xd3 build/obj_files/bitblt_driver.o
  .debug_rnglists
@@ -2015,15 +2020,15 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_rnglists
                 0x0000075c      0x15b build/obj_files/hwt.o
  .debug_rnglists
-                0x000008b7      0x43b build/obj_files/scenes.o
+                0x000008b7      0x43e build/obj_files/scenes.o
  .debug_rnglists
-                0x00000cf2      0x81d build/obj_files/art.o
+                0x00000cf5      0x839 build/obj_files/art.o
  .debug_rnglists
-                0x0000150f       0x5b build/obj_files/fb_driver.o
+                0x0000152e       0x5b build/obj_files/fb_driver.o
  .debug_rnglists
-                0x0000156a      0x116 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+                0x00001589      0x116 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
 
-.debug_macro    0x00000000     0x2df3
+.debug_macro    0x00000000     0x2d5b
  .debug_macro   0x00000000      0x1f0 build/obj_files/bitblt_driver.o
  .debug_macro   0x000001f0      0x7c6 build/obj_files/bitblt_driver.o
  .debug_macro   0x000009b6       0x22 build/obj_files/bitblt_driver.o
@@ -2071,16 +2076,14 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_macro   0x0000278a       0x78 build/obj_files/swr.o
  .debug_macro   0x00002802       0x72 build/obj_files/font.o
  .debug_macro   0x00002874      0x121 build/obj_files/game.o
- .debug_macro   0x00002995       0x4c build/obj_files/game.o
- .debug_macro   0x000029e1       0x8a build/obj_files/hwt.o
- .debug_macro   0x00002a6b      0x181 build/obj_files/scenes.o
- .debug_macro   0x00002bec       0x4c build/obj_files/scenes.o
- .debug_macro   0x00002c38       0x7e build/obj_files/art.o
- .debug_macro   0x00002cb6       0x46 build/obj_files/art.o
- .debug_macro   0x00002cfc       0x8d build/obj_files/fb_driver.o
- .debug_macro   0x00002d89       0x6a build/obj_files/fb_driver.o
+ .debug_macro   0x00002995       0x8a build/obj_files/hwt.o
+ .debug_macro   0x00002a1f      0x181 build/obj_files/scenes.o
+ .debug_macro   0x00002ba0       0x7e build/obj_files/art.o
+ .debug_macro   0x00002c1e       0x46 build/obj_files/art.o
+ .debug_macro   0x00002c64       0x8d build/obj_files/fb_driver.o
+ .debug_macro   0x00002cf1       0x6a build/obj_files/fb_driver.o
 
-.debug_line     0x00000000    0x17d73
+.debug_line     0x00000000    0x183ad
  .debug_line    0x00000000     0x1226 build/obj_files/bitblt_driver.o
  .debug_line    0x00001226      0xea9 build/obj_files/content.o
  .debug_line    0x000020cf     0x18ca build/obj_files/main.o
@@ -2088,39 +2091,39 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_line    0x0000468c      0x190 build/obj_files/font.o
  .debug_line    0x0000481c     0x4cd3 build/obj_files/game.o
  .debug_line    0x000094ef      0x902 build/obj_files/hwt.o
- .debug_line    0x00009df1     0x6ac4 build/obj_files/scenes.o
- .debug_line    0x000108b5     0x65b2 build/obj_files/art.o
- .debug_line    0x00016e67      0x3cc build/obj_files/fb_driver.o
- .debug_line    0x00017233      0x122 build/obj_files/start.o
- .debug_line    0x00017355      0x9df D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
- .debug_line    0x00017d34       0x3f D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
+ .debug_line    0x00009df1     0x6fc0 build/obj_files/scenes.o
+ .debug_line    0x00010db1     0x66f0 build/obj_files/art.o
+ .debug_line    0x000174a1      0x3cc build/obj_files/fb_driver.o
+ .debug_line    0x0001786d      0x122 build/obj_files/start.o
+ .debug_line    0x0001798f      0x9df D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+ .debug_line    0x0001836e       0x3f D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
 
-.debug_str      0x00000000     0xb18e
- .debug_str     0x00000000     0xb18e build/obj_files/bitblt_driver.o
+.debug_str      0x00000000     0xb1ad
+ .debug_str     0x00000000     0xb1ad build/obj_files/bitblt_driver.o
                                0x92d3 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/content.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/content.o
                                0x4001 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/main.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/main.o
                                0x9fa6 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/swr.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/swr.o
                                0x3e5d (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/font.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/font.o
                                0x3d54 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/game.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/game.o
                                0x481c (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/hwt.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/hwt.o
                                0x41c9 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/scenes.o
-                               0x4cbe (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/art.o
-                               0x3c82 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/fb_driver.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/scenes.o
+                               0x4ce2 (size before relaxing)
+ .debug_str     0x0000b1ad        0x0 build/obj_files/art.o
+                               0x3c81 (size before relaxing)
+ .debug_str     0x0000b1ad        0x0 build/obj_files/fb_driver.o
                                0x4571 (size before relaxing)
- .debug_str     0x0000b18e        0x0 build/obj_files/start.o
+ .debug_str     0x0000b1ad        0x0 build/obj_files/start.o
                                  0x7b (size before relaxing)
- .debug_str     0x0000b18e        0x0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
+ .debug_str     0x0000b1ad        0x0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_udivdi3.o)
                                 0x27d (size before relaxing)
- .debug_str     0x0000b18e        0x0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
+ .debug_str     0x0000b1ad        0x0 D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
                                 0x1ca (size before relaxing)
 
 .debug_line_str
@@ -2224,7 +2227,7 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .riscv.attributes
                 0x0000030b       0x2a D:/riscv/bin/../lib/gcc/riscv-none-elf/13.4.0/rv32im/ilp32\libgcc.a(_clz.o)
 
-.debug_frame    0x00000000     0x2178
+.debug_frame    0x00000000     0x218c
  .debug_frame   0x00000000      0x3c4 build/obj_files/bitblt_driver.o
  .debug_frame   0x000003c4      0x190 build/obj_files/content.o
  .debug_frame   0x00000554      0x354 build/obj_files/main.o
@@ -2232,6 +2235,6 @@ OUTPUT(build/bbShow.elf elf32-littleriscv)
  .debug_frame   0x000009f4       0x30 build/obj_files/font.o
  .debug_frame   0x00000a24      0x608 build/obj_files/game.o
  .debug_frame   0x0000102c       0xe4 build/obj_files/hwt.o
- .debug_frame   0x00001110      0x908 build/obj_files/scenes.o
- .debug_frame   0x00001a18      0x674 build/obj_files/art.o
- .debug_frame   0x0000208c       0xec build/obj_files/fb_driver.o
+ .debug_frame   0x00001110      0x918 build/obj_files/scenes.o
+ .debug_frame   0x00001a28      0x678 build/obj_files/art.o
+ .debug_frame   0x000020a0       0xec build/obj_files/fb_driver.o
