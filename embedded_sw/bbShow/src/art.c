@@ -412,8 +412,9 @@ static Spr pack_spr(int idx)
 
 static int art_load_pack(void)
 {
-    /* mem_delta is 0 on the board and points the address into the preview arena
-     * on the PC, so the same code reads the same blob in both places */
+#if !USE_ART_PACK
+    return 0;
+#else
     pack_base = (uint8_t *)(uintptr_t)(GAME_ASSET_ADDR + mem_delta);
     if (rd32(pack_base) != GAME_ASSET_MAGIC || rd32(pack_base + 4) != 1) return 0;
     if (rd32(pack_base + 8) < 20) return 0;
@@ -448,6 +449,7 @@ static int art_load_pack(void)
 
     art_pack_loaded = 1;
     return 1;
+#endif
 }
 
 /* 4x4 ordered dither, used to fake a soft edge with a 1-bit key */

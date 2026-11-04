@@ -68,9 +68,17 @@ extern Spr G_BLOOM[2];
  * the fight reads as a machine rather than a floating skull. */
 extern Spr G_ARM[2];
 
-/* Sprite sheet packed by tools/pack_game.py and written to DDR with
- * tools/load_game.ps1.  If the magic is missing the procedural art is used
- * instead, so the firmware never depends on the load having happened. */
+/* Hand-painted pack (RUOK / Kenney, CC0) vs the procedural art.
+ *
+ * 0 = procedural.  The pack was wired up and measured, and at 720p its 64 px
+ * neon sprites read as busy colour noise next to a 1280 px playfield: the ships
+ * are drawn for a 320x240 screen, and upscaling them 3x does not add detail, it
+ * adds blockiness while the outlines fight the starfield.  The procedural set
+ * stays because it is drawn at the display's own scale.
+ *
+ * Flip to 1 and run tools/load_game_assets.ps1 first to compare the two. */
+#define USE_ART_PACK      0
+
 #define GAME_ASSET_ADDR   0x07400000u
 #define GAME_ASSET_MAGIC  0x4B415047u   /* 'GPAK' */
 extern int art_pack_loaded;

@@ -155,11 +155,11 @@ static void make_sky(void)
     /* almost black, with a faint blue haze towards the bottom */
     for (int i = 0; i < N_BG_BAND; i++) {
         int y = i * (SCREEN_H / N_BG_BAND) + 7;
-        /* Near-black with a hint of blue at the bottom.  Anything brighter turns
-         * the playfield into a blue wall and the neon sprites stop glowing. */
-        int r = (y * 1) / SCREEN_H;
-        int g = 1 + (y * 2) / SCREEN_H;
-        int b = 4 + (y * 7) / SCREEN_H;
+        /* Dimmed for the hand-painted pack; restored now that the procedural
+         * sprites are back, where the haze is what gives the sky depth. */
+        int r = (y * 2) / SCREEN_H;
+        int g = 1 + (y * 4) / SCREEN_H;
+        int b = 6 + (y * 13) / SCREEN_H;
         bg_band[i] = (uint16_t)((r << 11) | (g << 5) | b);
     }
 }
@@ -896,6 +896,8 @@ static void draw_world(void)
         /* Arms hang behind the head: the alien sprite alone is a floating skull,
          * with the mirrored rail cannons it becomes a machine.  They fade in
          * with the head so the entrance still reads as one thing. */
+        /* Inert unless the hand-painted pack is enabled (USE_ART_PACK), in which
+         * case the alien head gets its rail-cannon arms. */
         if (G_ARM[0].w) {
             int ay = by + bs->h / 2 - G_ARM[0].h / 2;
             blit(&G_ARM[0], bx - G_ARM[0].w + 6, ay);
