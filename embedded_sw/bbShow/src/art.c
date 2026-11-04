@@ -111,27 +111,6 @@ static void mirror_x(Spr *s)
         }
 }
 
-/* Nearest-neighbour doubling.  A 64 px ship is 1/20 of a 1280 px screen, which
- * reads as a distant speck next to 26 px boss bullets; doubling the finished
- * sprite gives it presence without touching the shape code, and doubling an
- * already-chunky sprite keeps the pixel grid square (2 px blocks become 4 px). */
-static Spr spr_scale2(const Spr *src)
-{
-    Spr d = spr_new(src->w * 2, src->h * 2, 0);
-    int ss = src->stride / 2, ds = d.stride / 2;
-    const uint16_t *s = A(src->addr);
-    uint16_t *p = A(d.addr);
-    for (int y = 0; y < src->h; y++)
-        for (int x = 0; x < src->w; x++) {
-            uint16_t c = s[(uint32_t)y * ss + x];
-            uint16_t *q0 = p + (uint32_t)(y * 2) * ds + x * 2;
-            uint16_t *q1 = q0 + ds;
-            q0[0] = q0[1] = c;
-            q1[0] = q1[1] = c;
-        }
-    return d;
-}
-
 /* ------------------------------------------------- arcade pixel-art pass ---
  * The shape code below paints with analytic shading.  On a 720p panel that
  * reads as vector art, not as an arcade sprite, and the difference is not the
@@ -849,17 +828,16 @@ void art_build(void)
     /* Flatten to the arcade grid.  Cell 2 for the small sprites keeps the shape
      * readable at 64 px; the boss and the planet get cell 3 so their size reads
      * as "big" rather than "detailed". */
+    /* Sizes stay as painted: doubling the player to 128 px and the boss to 448 px
+     * made both of them sit on top of the playfield instead of in it.  On a
+     * 720p panel the arcade proportions are a ~64 px player and a ~224 px boss;
+     * the pixel-art grid is what carries the style, not the size. */
     arcade(&G_SHIP[SHIP_IDLE], 2);
     arcade(&G_SHIP[SHIP_LEFT], 2);
     arcade(&G_SHIP[SHIP_RIGHT], 2);
     arcade(&G_SHIP[SHIP_HIT], 2);
-    /* the player is the one sprite that must dominate the screen */
-    for (int i = 0; i < SHIP_N; i++) G_SHIP[i] = spr_scale2(&G_SHIP[i]);
     for (int i = 0; i < FOE_N; i++) arcade(&G_FOE[i], 2);
     for (int i = 0; i < 2; i++)     arcade(&G_BOSS[i], 3);
-    /* 224 px on a 1280 px screen is a mid-boss, not a boss: the fight occupies
-     * the top third of the arcade cabinet's screen, so double it. */
-    for (int i = 0; i < 2; i++)     G_BOSS[i] = spr_scale2(&G_BOSS[i]);
     for (int i = 0; i < 6; i++)     arcade(&G_BOOM[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_RING[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_HIT[i], 1);

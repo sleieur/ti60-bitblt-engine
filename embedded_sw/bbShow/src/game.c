@@ -904,7 +904,7 @@ static void draw_world(void)
     if (!pdead) {
         int bx = PX(px) + sx, by = PX(py) + sy;
         if (pinv == 0 || (pinv & 4)) {
-            blit(&G_FLAME[(g_frame >> 2) % 3], bx - G_FLAME[0].w / 2, by + 40);
+            blit(&G_FLAME[(g_frame >> 2) % 3], bx - G_FLAME[0].w / 2, by + 20);
             const Spr *s = &G_SHIP[(pvx < -16) ? SHIP_LEFT : ((pvx > 16) ? SHIP_RIGHT : SHIP_IDLE)];
             if (pinv > 0 && (pinv & 2)) s = &G_SHIP[SHIP_HIT];
             blit(s, bx - s->w / 2, by - s->h / 2);
