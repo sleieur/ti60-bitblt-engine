@@ -379,6 +379,9 @@ Spr G_RING[3];
 Spr G_STAR[4];
 Spr G_NEB[2];
 Spr G_PLANET;
+Spr G_SWARM[3];
+Spr G_GEM;
+Spr G_BLADE;
 Spr G_STREAK[2];
 Spr G_BLOOM[2];
 Spr G_ARM[2];
@@ -933,6 +936,90 @@ static void build_bloom(int idx, int size, uint16_t mid)
         }
 }
 
+/* -------------------------------------------------- survivors horde sprites ---
+ * Three silhouettes, three colours, one grid.  At 24 px a shape is read almost
+ * entirely by its outline, so the three are deliberately different shapes
+ * (round, jagged, angular) rather than the same blob in different colours:
+ * a horde of 600 identical dots turns into noise, a horde of three recognisable
+ * kinds reads as an army.
+ */
+static void build_swarm(void)
+{
+    static const uint16_t body[3] = { 0x2D28u, 0xD300u, 0x7A5Fu };   /* green / amber / violet */
+    static const uint16_t lit[3]  = { 0xAFF5u, 0xFFD0u, 0xC79Fu };
+
+    for (int k = 0; k < 3; k++) {
+        Spr *s = &G_SWARM[k];
+        *s = spr_new(30, 30, MAG);
+        int st = s->stride / 2;
+        uint16_t *b = A(s->addr);
+        int c = 15, r = k == 1 ? 14 : 12;
+
+        for (int y = 0; y < 30; y++) {
+            for (int x = 0; x < 30; x++) {
+                int dx = x - c, dy = y - c;
+                int d2 = dx * dx + dy * dy;
+                int in = 0;
+                if (k == 0) {
+                    in = d2 < r * r;
+                } else if (k == 1) {
+                    /* brute: round body with four horns */
+                    in = d2 < r * r;
+                    if (!in && d2 < (r + 3) * (r + 3) &&
+                        (dx * dx > 6 * 6 || dy * dy > 6 * 6)) in = 0;
+                    if (!in && ((dx > -4 && dx < 4 && dy < -9) || (dx > -4 && dx < 4 && dy > 9)))
+                        in = 1;
+                } else {
+                    /* elite: hexagon, reads angular even at this size */
+                    int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+                    in = (ax * 3 + ay * 2) < r * 4;
+                }
+                if (!in) continue;
+                /* lit from the upper left, three steps: enough to look solid
+                 * without a gradient that the palette would flatten anyway */
+                int lam = (-dx - dy) * 100 / (r * 2);
+                uint16_t col;
+                if (lam > 55)      col = lit[k];
+                else if (lam > 0)  col = mix565(body[k], lit[k], 120);
+                else               col = mix565(0x0000u, body[k], 210);
+                b[y * st + x] = col;
+            }
+        }
+        /* two eyes, always facing the player: the only detail that survives the
+         * scale, and it is what makes a dot look alive */
+        pset(s, c - 4, c - 4, 0xFFFFu);
+        pset(s, c + 4, c - 4, 0xFFFFu);
+        arcade(s, 2);
+    }
+
+    /* gem: a 14 px diamond, bright enough to read against the horde */
+    {
+        Spr *s = &G_GEM;
+        *s = spr_new(14, 14, MAG);
+        for (int y = 0; y < 14; y++)
+            for (int x = 0; x < 14; x++) {
+                int d = (x > 6 ? x - 6 : 6 - x) + (y > 6 ? y - 6 : 6 - y);
+                if (d > 6) continue;
+                pset(s, x, y, d < 2 ? 0xFFFFu : (d < 4 ? 0x07FFu : 0x03EFu));
+            }
+        arcade(s, 1);
+    }
+
+    /* aura blade: a small spinning disc, no orientation needed */
+    {
+        Spr *s = &G_BLADE;
+        *s = spr_new(18, 18, MAG);
+        for (int y = 0; y < 18; y++)
+            for (int x = 0; x < 18; x++) {
+                int dx = x - 9, dy = y - 9;
+                int d2 = dx * dx + dy * dy;
+                if (d2 > 81) continue;
+                pset(s, x, y, d2 > 49 ? 0xFC00u : (d2 > 20 ? 0xFFE0u : 0xFFFFu));
+            }
+        arcade_soft(s, 1);
+    }
+}
+
 static void build_streaks(void)
 {
     /* Two lengths so the near ones read as faster than the far ones. */
@@ -974,6 +1061,7 @@ void art_build(void)
     build_bloom(0, 96, 0xFFE0u);      /* foe pop: warm white */
     build_bloom(1, 240, 0xFEA0u);     /* boss core: amber */
     build_streaks();
+    build_swarm();
     build_ui_texture();
 
     /* Flatten to the arcade grid.  Cell 2 for the small sprites keeps the shape

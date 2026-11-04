@@ -68,6 +68,13 @@ extern Spr G_BLOOM[2];
  * the fight reads as a machine rather than a floating skull. */
 extern Spr G_ARM[2];
 
+/* Survivors scene.  These are deliberately small: the horde reaches 760 heads,
+ * and at 24 px each the whole screen of enemies costs about what one 224 px boss
+ * does.  Big enemies would make the scene a benchmark again. */
+extern Spr G_SWARM[3];      /* grunt / brute / elite   */
+extern Spr G_GEM;           /* experience pickup       */
+extern Spr G_BLADE;         /* orbiting aura blade     */
+
 /* Hand-painted pack (RUOK / Kenney, CC0) vs the procedural art.
  *
  * 0 = procedural.  The pack was wired up and measured, and at 720p its 64 px

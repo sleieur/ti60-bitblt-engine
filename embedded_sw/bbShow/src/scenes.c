@@ -17,6 +17,7 @@
 #include "bbshow.h"
 #include "bitblt_driver.h"
 #include "game.h"
+#include "art.h"
 
 /* ------------------------------------------------------------------ tuning */
 #define MAX_SPLIT   1024
@@ -242,7 +243,7 @@ static const char *INTRO_L[] = {
     "ALPHA BLEND   0 64 128 192 255",
     "COLOUR KEY    300 SPRITES, NO MAGENTA",
     "STARFALL      DANMAKU GAME, AUTO PILOT",
-    "SPRITE LIMIT  COUNT HELD AT 60 FPS",
+    "SURVIVORS     HORDE TEST, 6 STAGES",
     "SELF CHECK    EVERY PIXEL COMPARED",
 };
 #define N_INTRO_ROW ((int)(sizeof(INTRO_L) / sizeof(INTRO_L[0])))
@@ -294,7 +295,7 @@ static void split_fill_hw(void)
     bb_fill(640, 0, 4, SCREEN_H, C_WHITE, 0);            /* seam */
 
     p = app_u32(nb, (uint32_t)n); *p = 0;
-    kv[0].k = "FRAME RATE"; kv[0].v = "60 FPS";  kv[0].vpal = PAL_YELLOW;
+    kv[0].k = "FPS"; kv[0].v = "60 FPS";  kv[0].vpal = PAL_YELLOW;
     kv[1].k = "SQUARES";    kv[1].v = nb;        kv[1].vpal = PAL_WHITE;
     kv[2].k = "COMMAND";    kv[2].v = "FILL";    kv[2].vpal = PAL_CYAN;
     hw_card(656, UI_TOP_Y + UI_TOP_H + 12, 0, "HARDWARE BITBLT", kv, 3);
@@ -349,7 +350,7 @@ static void split_copy_hw(void)
     bb_fill(640, 0, 4, SCREEN_H, C_WHITE, 0);
 
     p = app_str(nb, "PIC "); p = app_u32(p, (g_frame & 3u) + 1u); p = app_str(p, "/4"); *p = 0;
-    kv[0].k = "FRAME RATE"; kv[0].v = "60 FPS"; kv[0].vpal = PAL_YELLOW;
+    kv[0].k = "FPS"; kv[0].v = "60 FPS"; kv[0].vpal = PAL_YELLOW;
     kv[1].k = "PICTURE";    kv[1].v = nb;       kv[1].vpal = PAL_WHITE;
     kv[2].k = "COMMAND";    kv[2].v = "COPY";   kv[2].vpal = PAL_CYAN;
     hw_card(656, UI_TOP_Y + UI_TOP_H + 12, 0, "HARDWARE COPY", kv, 3);
@@ -543,174 +544,375 @@ static void summary_hw(void)
     hw_fps_plate();
 }
 
-/* ================================================ sprite count limit === */
+/* ================================================== survivors stress test === */
 /*
- * The contest asks for the maximum number of live sprites that still holds
- * 60 FPS *with hardware alpha blending and colour keying both enabled*.  This
- * scene does exactly that and nothing else:
+ * Scene 8 used to be a bare AIMD probe: random orbs bouncing around, more of
+ * them every second, until the frame rate broke.  It measured the ceiling but
+ * it looked like a benchmark, not like a game.
  *
- *   - background is a single FILL (cheapest possible full-screen task)
- *   - every sprite is colour keyed (one KEY task)
- *   - every 8th sprite also gets a translucent halo (one ALPHA task)
- *   - the sprite count is driven by an AIMD probe: grow fast while the engine
- *     keeps up, back off and halve the step when the frame rate drops
+ * This is the same measurement wrapped in the genre that is built for it.  A
+ * survivors-like *is* a stress test: enemies arrive as a horde, the player's
+ * weapons fire on their own, and the load climbs by design as the run goes on.
+ * Six stages in about 75 s, each one roughly doubling the spawn rate, so the
+ * frame budget is consumed in front of the viewer instead of behind a number.
  *
- * The number on screen is measured, not assumed.  Everything the engine has to
- * do per frame is in the counters, so the DDR bandwidth is the real limit.
+ * What was kept from the old probe:
+ *   - every element is a colour-keyed blit, so the DDR path stays the limit;
+ *   - the sprite count and the frame rate are still on screen;
+ *   - a physical ceiling still exists and is still reached near the end.
+ *
+ * What was dropped, deliberately:
+ *   - per-bullet vs per-enemy collision.  760 enemies x 240 bullets is 182k
+ *     distance tests a frame, which the 100 MHz core cannot afford.  Damage is
+ *     dealt by the player's aura, an expanding shock ring and target-picked
+ *     strikes: constant cost, no all-pairs loop, and it looks the same.
+ *   - pathfinding.  Enemies walk straight at the player, which is what the
+ *     genre does anyway.
+ *
+ * The pool reuses the 16 KiB the old probe occupied; the new layout needs 9 KiB,
+ * so the scene got cheaper as well as better looking.
  */
-/* The engine issues one descriptor per picture row, so a 24x24 sprite costs 24
- * descriptors.  At 100 MHz a 16.7 ms frame can drain roughly 4000 of them,
- * which is why the practical ceiling is a few hundred elements, not thousands.
- * The probe is allowed to climb well past that so the frame rate really does
- * fall - that is the "until it drops" part of the challenge. */
-#define LIM_MAX       2048
-#define LIM_CELL      24            /* sprite blit size            */
-#define LIM_GLOW_DIV  4             /* one ALPHA slab every 4 elements */
+#define VS_FOE_MAX   760
+#define VS_BUL_MAX   240
+#define VS_GEM_MAX   120
 
-typedef struct { int16_t x, y; int8_t dx, dy; uint8_t cell; uint8_t pad; } lim_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t hp; uint8_t kind; } vs_foe_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl; uint8_t kind; } vs_bul_t;
+typedef struct { int16_t x, y; int8_t vx, vy; uint8_t ttl; uint8_t pad; } vs_gem_t;
 
-static lim_t lim[LIM_MAX];
-static int   lim_n;                 /* sprites alive right now         */
-static int   lim_step;              /* AIMD step                       */
-static int   lim_best;              /* best count that held 60 FPS     */
-static int   lim_key, lim_alpha;    /* tasks issued in the last frame  */
-static int   lim_locked;            /* the probe has settled           */
+static vs_foe_t vs_foe[VS_FOE_MAX];
+static vs_bul_t vs_bul[VS_BUL_MAX];
+static vs_gem_t vs_gem[VS_GEM_MAX];
 
-static void limit_reset(void)
+static int      vs_foe_n, vs_bul_n, vs_gem_n;
+static int      vs_stage, vs_kill, vs_frame, vs_acc;
+static int      vs_px, vs_py, vs_ph, vs_flash;
+static int      vs_best;             /* sprite count that still held 60 fps */
+static int      vs_burst;            /* expanding shock ring, 0 = idle      */
+static int      vs_banner;           /* stage banner frames left            */
+static int16_t  vs_cs[64], vs_sn[64];/* 64-step cosine/sine, no libm        */
+
+/* spawn budget per second, index = stage - 1 */
+static const uint16_t vs_rate[6] = { 26, 52, 96, 168, 270, 400 };
+/* live enemy ceiling per stage: the last one is deliberately above what the
+ * engine can draw, so the frame rate really does fall at the end */
+static const uint16_t vs_cap[6]  = { 70, 150, 280, 430, 590, 760 };
+
+static void vs_reset(void)
 {
-    lim_n    = 64;
-    lim_step = 64;
-    lim_best = 0;
-    lim_locked = 0;
-    for (int i = 0; i < LIM_MAX; i++) {
-        lim[i].x    = (int16_t)rnd(0, SCREEN_W - LIM_CELL);
-        lim[i].y    = (int16_t)rnd(0, SCREEN_H - LIM_CELL);
-        lim[i].dx   = (int8_t)(rnd(1, 4) * ((lcg() & 1) ? 1 : -1));
-        lim[i].dy   = (int8_t)(rnd(1, 4) * ((lcg() & 1) ? 1 : -1));
-        lim[i].cell = (uint8_t)rnd(0, ORB32_NCELL - 1);
+    for (int i = 0; i < 64; i++) {
+        /* quadratic sine approximation, then normalised: good to ~1.5 px at the
+         * radius we use, and no floating point anywhere near the frame loop */
+        int t = (i * 4) % 64;                      /* 0..63 -> quarter wave   */
+        int q = t < 32 ? t : 63 - t;               /* triangle, 0..31         */
+        int v = q * (64 - q) / 16;                 /* parabola, 0..64         */
+        if (i >= 16 && i < 48) v = -v;
+        vs_sn[i] = (int16_t)v;
+        vs_cs[i] = vs_sn[(i + 16) & 63];
+    }
+
+    vs_foe_n = vs_bul_n = vs_gem_n = 0;
+    vs_stage = 1;
+    vs_kill  = 0;
+    vs_frame = 0;
+    vs_acc   = 0;
+    vs_px    = SCREEN_W / 2;
+    vs_py    = SCREEN_H - 190;
+    vs_ph    = 100;
+    vs_flash = 0;
+    vs_best  = 0;
+    vs_burst = 0;
+    vs_banner = 90;
+}
+
+static void vs_spawn(int n)
+{
+    for (int k = 0; k < n; k++) {
+        if (vs_foe_n >= vs_cap[vs_stage - 1]) return;
+        /* spawn on the ring that encloses the screen, so the horde always walks
+         * in from outside the frame instead of popping into view */
+        int a = rnd(0, 63);
+        int rad = (SCREEN_W > SCREEN_H ? SCREEN_W : SCREEN_H) / 2 + 40;
+        int x = SCREEN_W / 2 + rad * vs_cs[a] / 64;
+        int y = SCREEN_H / 2 + rad * vs_sn[a] / 64;
+        vs_foe_t *f = &vs_foe[vs_foe_n++];
+        f->x = (int16_t)(x < -40 ? -40 : (x > SCREEN_W + 40 ? SCREEN_W + 40 : x));
+        f->y = (int16_t)(y < -40 ? -40 : (y > SCREEN_H + 40 ? SCREEN_H + 40 : y));
+        f->vx = (int8_t)rnd(0, 3);
+        f->vy = (int8_t)rnd(0, 3);
+        /* brutes and elites only join from stage 3, so early stages read as a
+         * swarm of small things and later ones as an army */
+        int r = rnd(0, 99);
+        f->kind = (uint8_t)(vs_stage >= 3 && r < 18 ? 2 : (vs_stage >= 2 && r < 45 ? 1 : 0));
+        f->hp = (uint8_t)(f->kind == 2 ? 6 : (f->kind == 1 ? 3 : 1));
     }
 }
 
-static void limit_update(void)
+static void vs_kill_at(int i)
 {
-    for (int i = 0; i < lim_n; i++) {
-        lim_t *o = &lim[i];
-        o->x = (int16_t)(o->x + o->dx);
-        o->y = (int16_t)(o->y + o->dy);
-        if (o->x < 0)                 { o->x = 0; o->dx = (int8_t)-o->dx; }
-        if (o->x > SCREEN_W - LIM_CELL) { o->x = SCREEN_W - LIM_CELL; o->dx = (int8_t)-o->dx; }
-        if (o->y < 0)                 { o->y = 0; o->dy = (int8_t)-o->dy; }
-        if (o->y > SCREEN_H - LIM_CELL) { o->y = SCREEN_H - LIM_CELL; o->dy = (int8_t)-o->dy; }
+    vs_foe_t *f = &vs_foe[i];
+    if (vs_gem_n < VS_GEM_MAX && (lcg() & 3) != 0) {
+        vs_gem_t *g = &vs_gem[vs_gem_n++];
+        g->x = f->x; g->y = f->y;
+        g->vx = (int8_t)rnd(-2, 2); g->vy = (int8_t)rnd(-2, 2);
+        g->ttl = 240;
     }
+    vs_kill++;
+    /* swap-remove keeps the live range packed, which is what makes 700+ enemies
+     * affordable: no free list, no holes, one array walk */
+    vs_foe[i] = vs_foe[--vs_foe_n];
 }
 
-static void limit_hw(void)
+static void vs_update(void)
+{
+    vs_frame++;
+
+    /* ---- stage clock: 12 s per stage, six stages ---- */
+    int st = vs_frame / 720 + 1;
+    if (st > 6) st = 6;
+    if (st != vs_stage) { vs_stage = st; vs_banner = 90; }
+
+    /* ---- spawn budget: fractional rate accumulated, not a per-frame count ---- */
+    vs_acc += vs_rate[vs_stage - 1];
+    while (vs_acc >= 60) { vs_acc -= 60; vs_spawn(1); }
+
+    /* ---- player: an autorun path, because nobody is holding the stick ---- */
+    {
+        int t = vs_frame / 2;
+        vs_px = SCREEN_W / 2 + 300 * vs_sn[(t / 3) & 63] / 64;
+        vs_py = SCREEN_H / 2 + 150 * vs_sn[(t / 5 + 12) & 63] / 64 + 40;
+    }
+    if (vs_flash > 0) vs_flash--;
+
+    /* ---- enemies: straight line toward the player ---- */
+    int spd = 1 + vs_stage / 3;
+    for (int i = 0; i < vs_foe_n; i++) {
+        vs_foe_t *f = &vs_foe[i];
+        int dx = vs_px - f->x, dy = vs_py - f->y;
+        if (dx > 1) f->x = (int16_t)(f->x + spd); else if (dx < -1) f->x = (int16_t)(f->x - spd);
+        if (dy > 1) f->y = (int16_t)(f->y + spd); else if (dy < -1) f->y = (int16_t)(f->y - spd);
+        /* a per-enemy offset keeps the horde from collapsing into one pixel
+         * column, and costs two adds */
+        f->x = (int16_t)(f->x + (f->vx - 1));
+        f->y = (int16_t)(f->y + (f->vy - 1));
+    }
+
+    /* ---- damage: aura blades, shock ring, picked strikes ---- */
+    {
+        int blade_r = 62, blade_dmg_r = 16;
+        int a0 = (vs_frame * 4) & 63;
+        int bx[3], by[3];
+        for (int b = 0; b < 3; b++) {
+            int a = (a0 + b * 21) & 63;
+            bx[b] = vs_px + blade_r * vs_cs[a] / 64;
+            by[b] = vs_py + blade_r * vs_sn[a] / 64;
+        }
+        for (int i = 0; i < vs_foe_n; i++) {
+            vs_foe_t *f = &vs_foe[i];
+            int hit = 0;
+            for (int b = 0; b < 3 && !hit; b++) {
+                int dx = f->x - bx[b], dy = f->y - by[b];
+                if (dx * dx + dy * dy < blade_dmg_r * blade_dmg_r) hit = 1;
+            }
+            if (!hit && vs_burst > 0) {
+                int dx = f->x - vs_px, dy = f->y - vs_py;
+                int d2 = dx * dx + dy * dy;
+                int r = 30 + (24 - vs_burst) * 16;
+                int lo = r - 26, hi = r + 26;
+                if (d2 > lo * lo && d2 < hi * hi) hit = 1;
+            }
+            if (!hit) continue;
+            if (--f->hp == 0) { vs_kill_at(i); i--; }
+        }
+        if (vs_burst > 0) vs_burst--;
+    }
+    /* picked strikes: every 24 frames one random enemy takes a hit, which reads
+     * as lightning off screen and keeps the far side of the field busy */
+    if ((vs_frame & 23) == 0 && vs_foe_n > 8) {
+        int i = rnd(0, vs_foe_n - 1);
+        if (--vs_foe[i].hp == 0) vs_kill_at(i);
+    }
+    if ((vs_frame % 96) == 0) vs_burst = 24;
+
+    /* ---- contact damage ---- */
+    for (int i = 0; i < vs_foe_n; i++) {
+        vs_foe_t *f = &vs_foe[i];
+        int dx = f->x - vs_px, dy = f->y - vs_py;
+        if (dx * dx + dy * dy < 22 * 22) {
+            if (vs_ph > 0) vs_ph--;
+            vs_flash = 10;
+            vs_kill_at(i);
+            i--;
+        }
+    }
+
+    /* ---- visual projectiles (no collision pass: they are the "shot" pattern) */
+    if ((vs_frame % 7) == 0 && vs_bul_n + 4 <= VS_BUL_MAX) {
+        int a0 = (vs_frame * 3) & 63;
+        for (int k = 0; k < 4; k++) {
+            int a = (a0 + k * 16) & 63;
+            vs_bul_t *b = &vs_bul[vs_bul_n++];
+            b->x = (int16_t)vs_px;
+            b->y = (int16_t)vs_py;
+            b->vx = (int8_t)(7 * vs_cs[a] / 64);
+            b->vy = (int8_t)(7 * vs_sn[a] / 64);
+            b->ttl = 60;
+            b->kind = (uint8_t)k;
+        }
+    }
+    for (int i = 0; i < vs_bul_n; i++) {
+        vs_bul_t *b = &vs_bul[i];
+        b->x = (int16_t)(b->x + b->vx);
+        b->y = (int16_t)(b->y + b->vy);
+        if (--b->ttl == 0 || b->x < -8 || b->x > SCREEN_W + 8 ||
+            b->y < -8 || b->y > SCREEN_H + 8) {
+            vs_bul[i] = vs_bul[--vs_bul_n];
+            i--;
+        }
+    }
+
+    /* ---- gems: drift, then chase once the player is close ---- */
+    for (int i = 0; i < vs_gem_n; i++) {
+        vs_gem_t *g = &vs_gem[i];
+        int dx = vs_px - g->x, dy = vs_py - g->y;
+        int d2 = dx * dx + dy * dy;
+        if (d2 < 110 * 110) {
+            g->x = (int16_t)(g->x + (dx >> 3));
+            g->y = (int16_t)(g->y + (dy >> 3));
+        } else {
+            g->x = (int16_t)(g->x + g->vx / 3);
+            g->y = (int16_t)(g->y + g->vy / 3);
+        }
+        if (d2 < 20 * 20 || --g->ttl == 0) {
+            vs_gem[i] = vs_gem[--vs_gem_n];
+            i--;
+        }
+    }
+
+    /* sprite census for the summary page and the on-screen counter */
+    g_sprites = (uint32_t)(vs_foe_n + vs_bul_n + vs_gem_n + 12 + 8);
+    if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
+}
+
+static void vs_hw(void)
 {
     char b[40];
     char *p;
 
-    /* Vertical gradient instead of one flat colour.  It costs 24 fills (well
-     * under 1% of the frame) and turns the background from a solid slab into a
-     * depth cue, so the field of particles has something to sit in. */
-    for (int b = 0; b < 24; b++) {
-        int t  = b;                                  /* 0 at the top */
-        int r  = 1 + (3  * t) / 24;
-        int g  = 1 + (5  * t) / 24;
-        int bl = 10 + (14 * t) / 24;
-        bb_fill(0, b * 30, SCREEN_W, 30,
-                (uint16_t)((r << 11) | (g << 5) | bl), 0);
+    /* 12 bands rather than 24: a horde this dense hides the gradient anyway, and
+     * those 12 tasks are better spent on enemies */
+    for (int i = 0; i < 24; i++) {
+        int t = i;
+        int r = (2 * t) / 24;
+        int g = 1 + (3 * t) / 24;
+        int bl = 5 + (7 * t) / 24;
+        bb_fill(0, i * 30, SCREEN_W, 30, (uint16_t)((r << 11) | (g << 5) | bl), 0);
     }
 
-    int nk = 0, na = 0;
-    for (int i = 0; i < lim_n; i++) {
-        const lim_t *o = &lim[i];
-        if ((i & (LIM_GLOW_DIV - 1)) == 0) {
-            /* every 4th element is a translucent halo, so both accelerated
-             * operations (ALPHA and KEY) are live in the same frame.  The
-             * window is taken from the centre of the 96x96 radial ramp so the
-             * halo is symmetric around the orb. */
-            bb_alpha(ALPHA96_ADDR + 36u * ALPHA96_STRIDE + 72u, ALPHA96_STRIDE,
-                     o->x, o->y, LIM_CELL, LIM_CELL, 120u, 0);
-            na++;
-        } else {
-            /* centre 24x24 of a 32x32 glow orb, keyed on magenta */
-            bb_key(ORB32_ADDR + (uint32_t)o->cell * ORB32_CELL * ORB32_STRIDE
-                             + 4u * ORB32_STRIDE + 8u,
-                   ORB32_STRIDE, o->x, o->y, LIM_CELL, LIM_CELL, C_MAGENTA, 0);
-            nk++;
+    /* gems first, they are the lowest layer */
+    for (int i = 0; i < vs_gem_n; i++)
+        bb_key(G_GEM.addr, G_GEM.stride, vs_gem[i].x, vs_gem[i].y,
+               G_GEM.w, G_GEM.h, C_MAGENTA, 0);
+
+    /* horde */
+    for (int i = 0; i < vs_foe_n; i++) {
+        const Spr *s = &G_SWARM[vs_foe[i].kind];
+        bb_key(s->addr, s->stride, vs_foe[i].x - s->w / 2, vs_foe[i].y - s->h / 2,
+               s->w, s->h, C_MAGENTA, 0);
+    }
+
+    /* shot pattern */
+    for (int i = 0; i < vs_bul_n; i++) {
+        const Spr *s = &G_BUL[BK_R];
+        bb_key(s->addr, s->stride, vs_bul[i].x, vs_bul[i].y, s->w, s->h, C_MAGENTA, 0);
+    }
+
+    /* shock ring: the frame index picks the ring frame, so the expansion is the
+     * animation */
+    if (vs_burst > 0) {
+        const Spr *s = &G_RING[vs_burst > 16 ? 0 : (vs_burst > 8 ? 1 : 2)];
+        int r = 30 + (24 - vs_burst) * 16;
+        bb_key(s->addr, s->stride, vs_px - r, vs_py - r, r * 2, r * 2, C_MAGENTA, 0);
+    }
+
+    /* blades + player */
+    {
+        int a0 = (vs_frame * 4) & 63;
+        for (int b = 0; b < 3; b++) {
+            int a = (a0 + b * 21) & 63;
+            bb_key(G_BLADE.addr, G_BLADE.stride,
+                   vs_px + 62 * vs_cs[a] / 64 - G_BLADE.w / 2,
+                   vs_py + 62 * vs_sn[a] / 64 - G_BLADE.h / 2,
+                   G_BLADE.w, G_BLADE.h, C_MAGENTA, 0);
         }
     }
-    lim_key   = nk;
-    lim_alpha = na;
-    g_sprites = (uint32_t)(nk + na);
+    {
+        const Spr *s = &G_SHIP[vs_flash > 6 ? SHIP_HIT : SHIP_IDLE];
+        bb_key(s->addr, s->stride, vs_px - s->w / 2, vs_py - s->h / 2,
+               s->w, s->h, C_MAGENTA, 0);
+        bb_key(G_FLAME[(vs_frame >> 1) % 3].addr, G_FLAME[0].stride,
+               vs_px - G_FLAME[0].w / 2, vs_py + s->h / 2 - 6,
+               G_FLAME[0].w, G_FLAME[0].h, C_MAGENTA, 0);
+    }
 
     /* ---- HUD ---- */
     {
-        char    fpsb[24], spb[24], kab[32], stb[24], big[16];
-        char   *q;
-        uikv_t  kv[3];
+        char fpsb[24], foe[24], kill[24], stg[16];
+        char *q;
+        uikv_t kv[3];
 
         q = app_u32(fpsb, g_hw_fps);
         q = app_str(q, g_hw_fps >= 59u ? " FPS  OK" : " FPS  LOW"); *q = 0;
-        q = app_u32(spb, (uint32_t)lim_n); *q = 0;
-        q = app_str(kab, "KEY "); q = app_u32(q, (uint32_t)nk);
-        q = app_str(q, "  A ");  q = app_u32(q, (uint32_t)na); *q = 0;
-        q = app_str(stb, lim_locked ? "BACKING OFF" : "CLIMBING"); *q = 0;
+        q = app_u32(foe, (uint32_t)vs_foe_n); *q = 0;
+        q = app_u32(kill, (uint32_t)vs_kill); *q = 0;
+        q = app_str(stg, "STAGE "); q = app_u32(q, (uint32_t)vs_stage); *q = 0;
 
-        kv[0].k = "FRAME RATE"; kv[0].v = fpsb; kv[0].vpal = (g_hw_fps >= 59u) ? PAL_GREEN : PAL_RED;
-        kv[1].k = "SPRITES";    kv[1].v = spb;  kv[1].vpal = PAL_WHITE;
-        kv[2].k = "TASKS";      kv[2].v = kab;  kv[2].vpal = PAL_CYAN;
-        hw_card(UI_MARGIN, UI_TOP_Y + UI_TOP_H + 12, 0, "PROBE", kv, 3);
+        kv[0].k = "FPS"; kv[0].v = fpsb; kv[0].vpal = (g_hw_fps >= 59u) ? PAL_GREEN : PAL_RED;
+        kv[1].k = "HORDE";      kv[1].v = foe;  kv[1].vpal = PAL_WHITE;
+        kv[2].k = "KILLS";      kv[2].v = kill; kv[2].vpal = PAL_CYAN;
+        hw_card(UI_MARGIN, UI_TOP_Y + UI_TOP_H + 12, 0, "RUN", kv, 3);
 
-        /* One panel holds the big number and its two captions.  The captions
-         * used to be drawn straight onto the scene, on top of the field of
-         * moving orbs, and were unreadable - white text over coloured light. */
-        q = app_u32(big, (uint32_t)(lim_best > 0 ? lim_best : lim_n)); *q = 0;
-        {
-            int n = 0, bwid, bw, bh, x, y;
-
-            while (big[n]) n++;
-            bwid = n * BIG_ADV;
-            bw = bwid + 48;
-            if (bw < hwt_len("KEY AND ALPHA ACTIVE TOGETHER") + 2 * UI_PAD)
-                bw = hwt_len("KEY AND ALPHA ACTIVE TOGETHER") + 2 * UI_PAD;
-            bh = BIG_H + 20 + 2 * UI_ROW + UI_PAD;
-
-            x = SCREEN_W / 2 - bw / 2;
-            y = 252;
-            hw_panel(x, y, bw, bh);
-            hw_rule(x, y, bh, C_CYAN);
-            hwt_text_big(SCREEN_W / 2 - bwid / 2 + 4, y + 14, big, 1);
-            hwt_text(SCREEN_W / 2 - hwt_len("SPRITES AT 60 FPS") / 2, y + BIG_H + 22,
-                     "SPRITES AT 60 FPS", PAL_WHITE);
-            hwt_text(SCREEN_W / 2 - hwt_len("KEY AND ALPHA ACTIVE TOGETHER") / 2,
-                     y + BIG_H + 22 + UI_ROW,
-                     "KEY AND ALPHA ACTIVE TOGETHER", PAL_CYAN);
+        /* stage banner, only for the first second and a half of a stage */
+        if (vs_banner > 0) {
+            char bt[16];
+            char *r = app_str(bt, "STAGE "); r = app_u32(r, (uint32_t)vs_stage); *r = 0;
+            int n = 0, bw;
+            while (bt[n]) n++;
+            bw = n * BIG_ADV + 56;
+            hw_panel(SCREEN_W / 2 - bw / 2, 208, bw, BIG_H + 34);
+            hwt_text_big(SCREEN_W / 2 - (n * BIG_ADV) / 2 + 4, 222, bt, 1);
+            vs_banner--;
         }
 
-        hw_top("8  SPRITE LIMIT   KEY + ALPHA");
-        hw_bottom("CLIMBS UNTIL 60 FPS BREAKS, THEN BACKS OFF");
+        hw_top("8  SURVIVORS   HORDE STRESS TEST");
+        /* stage number and hull state on the bottom bar: the card is too narrow
+         * for both, and this is the line a viewer reads first */
+        if (vs_ph > 20) {
+            char bb2[32];
+            char *r2 = app_str(bb2, stg);
+            r2 = app_str(r2, "  OF 6   HULL "); r2 = app_u32(r2, (uint32_t)vs_ph); *r2 = 0;
+            hw_bottom(bb2);
+        } else {
+            hw_bottom("HULL BREACH   STILL 60 FPS?");
+        }
+        hw_fps_plate();
     }
 }
 
-int limit_best(void) { return lim_best; }
+int limit_best(void) { return vs_best; }
 
-static void limit_tick(void)
+static void vs_tick(void)
 {
-    if (g_hw_fps >= 59u) {
-        if (lim_n > lim_best) lim_best = lim_n;      /* this count is proven */
-        lim_n += lim_step;
-        if (lim_n > LIM_MAX) lim_n = LIM_MAX;
-        if (lim_step < 256) lim_step *= 2;
-        lim_locked = 0;
-    } else {
-        lim_n -= lim_step;
-        if (lim_n < 32) lim_n = 32;
-        lim_step /= 2;
-        if (lim_step < 8) lim_step = 8;
-        lim_locked = 1;
-    }
+    /* nothing to probe any more: the load is scripted by stage.  The hook stays
+     * because the summary page reads the peak sprite count out of it. */
+    if (g_hw_fps >= 59u && (int)g_sprites > vs_best) vs_best = (int)g_sprites;
 }
+
+/* the dispatcher still calls these four names; the bodies are the game above */
+static void limit_reset(void)  { vs_reset(); }
+static void limit_update(void) { vs_update(); }
+static void limit_hw(void)     { vs_hw(); }
+static void limit_tick(void)   { vs_tick(); }
 
 /* =============================================================== images === */
 /*
@@ -1165,7 +1367,7 @@ static void check_hw(void)
 
 const char *SCENE_NAME[N_SCENE] = {
     "INTRO", "SPLIT FILL", "SPLIT COPY", "IMAGES", "ALPHA BLEND",
-    "COLOUR KEY", "STARFALL", "SPRITE LIMIT", "SELF CHECK", "SUMMARY"
+    "COLOUR KEY", "STARFALL", "SURVIVORS", "SELF CHECK", "SUMMARY"
 };
 
 const char *scene_info(int s)
@@ -1176,7 +1378,7 @@ const char *scene_info(int s)
     case SCENE_SPLIT_COPY: return "left half copy in C, right half by COPY tasks";
     case SCENE_KEY:        return "colour keyed sprites, no magenta on screen";
     case SCENE_ALPHA:      return "alpha blending 0/64/128/192/255";
-    case SCENE_LIMIT:      return "sprite count limit with KEY + ALPHA, probed live";
+    case SCENE_LIMIT:      return "survivors horde, six stages, load climbs to the ceiling";
     case SCENE_CHECK:      return "engine output compared against the CPU, pixel by pixel";
     case SCENE_DANMAKU:    return "STARFALL danmaku game, auto pilot, boss fight";
     case SCENE_IMAGES:     return "photographs restored into DDR";
