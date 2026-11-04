@@ -713,6 +713,9 @@ void art_build(void)
     for (int i = 0; i < SHIP_N; i++) G_SHIP[i] = spr_scale2(&G_SHIP[i]);
     for (int i = 0; i < FOE_N; i++) arcade(&G_FOE[i], 2);
     for (int i = 0; i < 2; i++)     arcade(&G_BOSS[i], 3);
+    /* 224 px on a 1280 px screen is a mid-boss, not a boss: the fight occupies
+     * the top third of the arcade cabinet's screen, so double it. */
+    for (int i = 0; i < 2; i++)     G_BOSS[i] = spr_scale2(&G_BOSS[i]);
     for (int i = 0; i < 6; i++)     arcade(&G_BOOM[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_RING[i], 2);
     for (int i = 0; i < 3; i++)     arcade(&G_HIT[i], 1);
