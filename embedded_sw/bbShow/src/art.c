@@ -111,6 +111,147 @@ static void mirror_x(Spr *s)
         }
 }
 
+/* Nearest-neighbour doubling.  A 64 px ship is 1/20 of a 1280 px screen, which
+ * reads as a distant speck next to 26 px boss bullets; doubling the finished
+ * sprite gives it presence without touching the shape code, and doubling an
+ * already-chunky sprite keeps the pixel grid square (2 px blocks become 4 px). */
+static Spr spr_scale2(const Spr *src)
+{
+    Spr d = spr_new(src->w * 2, src->h * 2, 0);
+    int ss = src->stride / 2, ds = d.stride / 2;
+    const uint16_t *s = A(src->addr);
+    uint16_t *p = A(d.addr);
+    for (int y = 0; y < src->h; y++)
+        for (int x = 0; x < src->w; x++) {
+            uint16_t c = s[(uint32_t)y * ss + x];
+            uint16_t *q0 = p + (uint32_t)(y * 2) * ds + x * 2;
+            uint16_t *q1 = q0 + ds;
+            q0[0] = q0[1] = c;
+            q1[0] = q1[1] = c;
+        }
+    return d;
+}
+
+/* ------------------------------------------------- arcade pixel-art pass ---
+ * The shape code below paints with analytic shading.  On a 720p panel that
+ * reads as vector art, not as an arcade sprite, and the difference is not the
+ * drawing - it is three properties of the *output*:
+ *
+ *   chunky   every feature is a whole cell x cell block, so nothing is sub-pixel
+ *   flat     a 16-colour palette, no smooth gradients, no dither noise
+ *   inked    a dark outline around the silhouette, which is what makes a sprite
+ *            pop off a busy starfield
+ *
+ * All three are post passes over a finished sprite, so every shape routine above
+ * keeps working unchanged and the sprites stay generated (no asset files).
+ */
+static const uint16_t APAL[16] = {
+    0x0000u,   /* 0  black          */
+    0x0841u,   /* 1  deep navy      */
+    0x1082u,   /* 2  navy           */
+    0x18E3u,   /* 3  dark slate     */
+    0x2965u,   /* 4  slate          */
+    0x4A69u,   /* 5  steel          */
+    0x7BEFu,   /* 6  silver         */
+    0xFFFFu,   /* 7  white          */
+    0x07FFu,   /* 8  cyan           */
+    0x03EFu,   /* 9  teal           */
+    0x07E0u,   /* 10 green          */
+    0xFFE0u,   /* 11 yellow         */
+    0xFE60u,   /* 12 amber          */
+    0xFC00u,   /* 13 orange         */
+    0xF800u,   /* 14 red            */
+    0xA01Fu    /* 15 magenta        */
+};
+
+static uint16_t qpal(uint16_t c)
+{
+    int r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+    int best = 0, bd = 1 << 30;
+    for (int i = 0; i < 16; i++) {
+        int pr = (APAL[i] >> 11) & 31, pg = (APAL[i] >> 5) & 63, pb = APAL[i] & 31;
+        int dr = r - pr, dg = g - pg, db = b - pb;
+        int d = dr * dr * 3 + dg * dg * 2 + db * db * 3;
+        if (d < bd) { bd = d; best = i; }
+    }
+    return APAL[best];
+}
+
+/* Flatten to cell x cell blocks.  Each block takes the *most frequent* palette
+ * colour of its pixels rather than their average: averaging mixes a white
+ * highlight with the hull blue and produces a muddy grey, which is exactly what
+ * turned the first attempt into dark blobs.  Taking the mode keeps highlights
+ * and accent stripes alive, and ties go to the brighter entry because APAL is
+ * ordered dark to light.  Blocks that are mostly background become background,
+ * which keeps the silhouette from growing a fringe. */
+static void pixelate(Spr *s, int cell)
+{
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+    for (int by = 0; by < s->h; by += cell) {
+        for (int bx = 0; bx < s->w; bx += cell) {
+            int hist[16], tot = 0, ink = 0;
+            for (int i = 0; i < 16; i++) hist[i] = 0;
+            for (int y = by; y < by + cell && y < s->h; y++)
+                for (int x = bx; x < bx + cell && x < s->w; x++) {
+                    uint16_t c = b[y * st + x];
+                    tot++;
+                    if (c == MAG) continue;
+                    ink++;
+                    uint16_t q = qpal(c);
+                    for (int i = 0; i < 16; i++)
+                        if (APAL[i] == q) { hist[i]++; break; }
+                }
+            uint16_t out = MAG;
+            if (ink * 2 >= tot) {
+                int best = 0;
+                for (int i = 0; i < 16; i++) if (hist[i] >= hist[best]) best = i;
+                out = APAL[best];
+            }
+            for (int y = by; y < by + cell && y < s->h; y++)
+                for (int x = bx; x < bx + cell && x < s->w; x++)
+                    b[y * st + x] = out;
+        }
+    }
+}
+
+static inline int ink(uint16_t c) { return c != MAG && c != 0x0001u; }
+
+/* One-cell-thick ink line around the silhouette.  Written in two passes through
+ * a sentinel so the line cannot crawl over itself and double in thickness. */
+static void ink_outline(Spr *s, int cell, uint16_t col)
+{
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+    for (int y = 0; y < s->h; y++)
+        for (int x = 0; x < s->w; x++) {
+            if (ink(b[y * st + x])) continue;
+            int hit = 0;
+            if (x >= cell      && ink(b[y * st + x - cell]))      hit = 1;
+            if (!hit && x + cell < s->w && ink(b[y * st + x + cell])) hit = 1;
+            if (!hit && y >= cell      && ink(b[(y - cell) * st + x])) hit = 1;
+            if (!hit && y + cell < s->h && ink(b[(y + cell) * st + x])) hit = 1;
+            if (hit) b[y * st + x] = 0x0001u;
+        }
+    for (int i = 0; i < st * s->h; i++)
+        if (b[i] == 0x0001u) b[i] = col;
+}
+
+/* Every sprite that ends up on screen goes through the same three passes. */
+static void arcade(Spr *s, int cell)
+{
+    pixelate(s, cell);
+    ink_outline(s, cell, 0x0000u);
+}
+
+/* Bullets get the grid and the flat palette but no ink line: a ring around a
+ * 18 px orb reads as a target, and in a dense pattern the rings merge into
+ * noise.  They stay bright dots, which is what the eye needs to dodge. */
+static void arcade_soft(Spr *s, int cell)
+{
+    pixelate(s, cell);
+}
+
 /* ----------------------------------------------------------- bullet shapes */
 /* A bullet is a glossy orb: rim, body, hot core and a specular dot. */
 static void orb(Spr *s, int r, uint16_t rim, uint16_t body, uint16_t core)
@@ -154,8 +295,10 @@ static void draw_hull(Spr *s, const Hull *h)
                 if (t > 255) t = 255;
                 c = mix565(h->dk, h->mid, t);
             }
-            /* spine highlight: the middle of the fuselage catches the light */
-            if (d <= 1 && y > 3 && y < 52) c = mix565(c, h->lit, 170);
+            /* Spine highlight only on the upper fuselage.  Running it the whole
+             * length turned into a bright stripe that beat the hull colour once
+             * the sprite was flattened, and the ship read as a white dart. */
+            if (d <= 1 && y > 5 && y < 26) c = mix565(c, h->lit, 150);
             /* sharp leading edge of the wing */
             if (y >= 33 && y <= 44 && d >= hh - 7 && d < hh) c = mix565(c, h->acc, 120);
             if (y > 52 && d <= 5) c = h->eng;                    /* engine bell */
@@ -173,8 +316,11 @@ static void draw_hull(Spr *s, const Hull *h)
                 if ((x < 0 ? -x : x) > h->half[yy]) continue;
                 int d2 = (x * x * 100) / (rx * rx) + (y * y * 100) / (ry * ry);
                 if (d2 > 100) continue;
-                if (!pass) { b[yy * st + cx + x] = 0x0841u; continue; }
-                uint16_t c = mix565(0x02B0u, 0x07FFu, 240 - d2 * 2);
+                /* Frame is a dark *tinted* ring, not black: a black frame plus a
+                 * dark glass gradient quantises into a hole, and the enemy read
+                 * as a flying donut. */
+                if (!pass) { b[yy * st + cx + x] = mix565(h->dk, 0x0000u, 70); continue; }
+                uint16_t c = mix565(0x04B0u, 0x9FFFu, 235 - d2 * 2);
                 b[yy * st + cx + x] = c;
             }
     }
@@ -198,22 +344,26 @@ static const uint8_t P_HALF[64] = {
     16,18,20,22,24,26,27,27,26,25,24,23,21,19,17,15,
     14,13,12,12,11,10,10,9,9,8,8,7,7,6,5,4
 };
+/* Silhouettes.  These read as three different roles at a glance, which is what
+ * a shooter needs: a fast dart, a broad-winged bomber and a small drone.  The
+ * previous version tapered evenly in both directions, which on screen made all
+ * three look like flying discs - the "ring" shape people noticed. */
 static const uint8_t FA_HALF[64] = {
-    20,24,26,27,27,26,25,24,23,22,21,20,19,18,17,16,
-    15,14,13,12,11,11,10,10,9,9,8,8,7,7,6,6,
-    5,5,4,4,4,3,3,3,2,2,2,2,1,1,1,1,
+    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
+    17,18,19,19,19,19,18,17,16,15,14,13,12,11,10,9,
+    8,7,6,5,4,3,2,1,1,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 static const uint8_t FB_HALF[64] = {
-    6,8,10,12,14,16,18,20,22,24,26,27,28,29,30,30,
-    30,30,30,30,30,30,30,30,29,29,28,28,27,27,26,26,
-    25,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,
+    3,4,5,6,8,9,10,11,12,13,14,15,16,17,18,19,
+    20,22,24,26,28,30,31,32,32,32,32,31,30,29,28,27,
+    26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,
     10,9,8,7,6,5,4,3,2,1,0,0,0,0,0,0
 };
 static const uint8_t FC_HALF[64] = {
-    1,2,3,4,5,6,7,8,9,10,11,12,13,13,13,13,
-    13,13,13,13,12,12,11,11,10,10,9,9,8,8,7,7,
-    6,6,5,5,4,4,3,3,2,2,1,1,0,0,0,0,
+    1,2,3,4,5,6,7,8,9,10,11,12,12,12,12,12,
+    12,12,11,11,10,10,9,9,8,8,7,7,6,6,5,5,
+    4,4,3,3,2,2,1,1,1,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 
@@ -229,6 +379,8 @@ Spr G_HIT[3];
 Spr G_RING[3];
 Spr G_STAR[4];
 Spr G_NEB[2];
+Spr G_PLANET;
+Spr G_STREAK[2];
 
 /* 4x4 ordered dither, used to fake a soft edge with a 1-bit key */
 static const uint8_t DITH[4][4] = {
@@ -261,12 +413,17 @@ static void glow_blob(Spr *s, uint16_t c1, uint16_t c2, int seed)
 
 static void build_ships(void)
 {
-    Hull hp = { P_HALF, 0xE7FFu, 0xDFFBu, 0x62CEu, 0x10A2u, 0x07FFu, 0xFE60u, 19, 6, 10 };
-    Hull hl = { P_HALF, 0xE7FFu, 0xDFFBu, 0x52AAu, 0x0861u, 0x07FFu, 0xFE60u, 19, 5, 9  };
+    /* Rim and lit are deliberately *not* near-white any more.  Once the sprite
+     * is flattened to whole blocks, a bright rim wins the block and the hull
+     * collapses into a white paper plane; keeping the rim one step above the
+     * body leaves the body colour in charge, which is what reads as a painted
+     * arcade sprite.  Only the hit-flash hull is allowed to go all white. */
+    Hull hp = { P_HALF, 0x4D3Fu, 0x8FFFu, 0x2A6Fu, 0x10A2u, 0x07FFu, 0xFE60u, 19, 6, 10 };
+    Hull hl = { P_HALF, 0x3CFFu, 0x6DFFu, 0x224Fu, 0x0861u, 0x07FFu, 0xFE60u, 19, 5, 9  };
     Hull hh = { P_HALF, 0xFFFFu, 0xFFFFu, 0xDEFBu, 0x9492u, 0xFFFFu, 0xFFFFu, 19, 7, 11 };
-    Hull ea = { FA_HALF, 0xFEA0u, 0xFD60u, 0xA2C0u, 0x4000u, 0xFFE0u, 0xFE60u, 18, 5, 6 };
-    Hull eb = { FB_HALF, 0xE81Fu, 0xB8B6u, 0x606Eu, 0x2008u, 0xC81Fu, 0xFE60u, 18, 7, 7 };
-    Hull ec = { FC_HALF, 0x87F0u, 0x4FE0u, 0x04C0u, 0x0120u, 0xAFE0u, 0xFE60u, 12, 3, 4 };
+    Hull ea = { FA_HALF, 0xB3E0u, 0xFD60u, 0x8A20u, 0x4000u, 0xFFE0u, 0xFE60u, 17, 4, 5 };
+    Hull eb = { FB_HALF, 0x90CFu, 0xD31Fu, 0x600Eu, 0x2008u, 0xC81Fu, 0xFE60u, 17, 5, 6 };
+    Hull ec = { FC_HALF, 0x2F60u, 0x4FE0u, 0x04C0u, 0x0120u, 0xAFE0u, 0xFE60u, 11, 3, 3 };
 
     G_SHIP[SHIP_IDLE] = spr_new(64, 64, MAG);
     draw_hull(&G_SHIP[SHIP_IDLE], &hp);
@@ -470,6 +627,60 @@ static void build_nebula(void)
     glow_blob(&G_NEB[1], 0x0421u, 0x108Au, 21);
 }
 
+/* A distant planet: the only thing in the scene that does not move.  It is
+ * painted in horizontal bands, lit from the left, then flattened to the same
+ * pixel grid as the ships so it does not look photo-real next to them. */
+static void build_planet(void)
+{
+    /* Muted gas-giant bands.  The first attempt used magenta and white, which
+     * after quantisation looked like a beach ball; a planet has to sit behind
+     * the action, not compete with it. */
+    const uint16_t band[5] = { 0x18C6u, 0x2968u, 0x31AAu, 0x39EBu, 0x2968u };
+    Spr *s = &G_PLANET;
+    int R = 150, cx = 180, cy = 180;
+    *s = spr_new(360, 360, MAG);
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+
+    for (int y = 0; y < s->h; y++) {
+        int dy = y - cy;
+        if (dy < 0) dy = -dy;
+        if (dy > R) continue;
+        int hw = isqrt_i(R * R - dy * dy);
+        for (int x = cx - hw; x <= cx + hw; x++) {
+            int rel = y + (x - cx) / 6;               /* bands tilt with latitude */
+            uint16_t c = band[((rel / 16) % 5 + 5) % 5];
+            int lit = 255 - ((x - (cx - hw)) * 150) / (2 * hw + 1);   /* light from the left */
+            if (lit < 40) lit = 40;
+            b[y * st + x] = mix565(0x0000u, c, lit);
+        }
+    }
+    /* thin crescent of atmosphere on the lit limb */
+    for (int y = 0; y < s->h; y++) {
+        int dy = y - cy;
+        if (dy < 0) dy = -dy;
+        if (dy > R) continue;
+        int hw = isqrt_i(R * R - dy * dy);
+        pset(s, cx - hw, y, 0x9FFFu);
+        pset(s, cx - hw + 1, y, 0x3E7Fu);
+    }
+    arcade(s, 3);
+}
+
+static void build_streaks(void)
+{
+    /* Two lengths so the near ones read as faster than the far ones. */
+    for (int k = 0; k < 2; k++) {
+        int w = k ? 2 : 3, h = k ? 20 : 34;
+        G_STREAK[k] = spr_new(w, h, MAG);
+        for (int y = 0; y < h; y++) {
+            uint16_t c = (y < h / 3) ? 0xFFFFu : ((y < h * 2 / 3) ? 0x7BEFu : 0x39E7u);
+            if (k) c = (y < h / 2) ? 0x07FFu : 0x03EFu;
+            for (int x = 0; x < w; x++) pset(&G_STREAK[k], x, y, c);
+        }
+    }
+}
+
 static void build_ui_texture(void)
 {
     static const uint16_t band[4] = { 0x0000u, 0x1084u, 0x8000u, 0xFFFFu };
@@ -487,5 +698,28 @@ void art_build(void)
     build_fx();
     build_stars();
     build_nebula();
+    build_planet();
+    build_streaks();
     build_ui_texture();
+
+    /* Flatten to the arcade grid.  Cell 2 for the small sprites keeps the shape
+     * readable at 64 px; the boss and the planet get cell 3 so their size reads
+     * as "big" rather than "detailed". */
+    arcade(&G_SHIP[SHIP_IDLE], 2);
+    arcade(&G_SHIP[SHIP_LEFT], 2);
+    arcade(&G_SHIP[SHIP_RIGHT], 2);
+    arcade(&G_SHIP[SHIP_HIT], 2);
+    /* the player is the one sprite that must dominate the screen */
+    for (int i = 0; i < SHIP_N; i++) G_SHIP[i] = spr_scale2(&G_SHIP[i]);
+    for (int i = 0; i < FOE_N; i++) arcade(&G_FOE[i], 2);
+    for (int i = 0; i < 2; i++)     arcade(&G_BOSS[i], 3);
+    for (int i = 0; i < 6; i++)     arcade(&G_BOOM[i], 2);
+    for (int i = 0; i < 3; i++)     arcade(&G_RING[i], 2);
+    for (int i = 0; i < 3; i++)     arcade(&G_HIT[i], 1);
+    /* Bullets, blooms and engine flames are deliberately left as painted.
+     * Dropping an 18 px orb onto a 2 px grid turns its rim into a dark ring -
+     * it reads as a target mark, and a screenful of them reads as noise.  The
+     * smooth glossy orb is what the eye can track in a dense pattern, and it
+     * sits next to the chunky ships the way arcade sprites and glow hardware
+     * always did. */
 }

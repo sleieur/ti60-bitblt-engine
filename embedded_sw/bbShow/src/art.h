@@ -54,6 +54,12 @@ extern Spr G_RING[3];
 extern Spr G_STAR[4];
 extern Spr G_NEB[2];
 
+/* Arcade extras: one distant planet and two speed streaks.  A static planet
+ * gives the scene depth without costing a task per frame; the streaks sell the
+ * scroll direction far better than another parallax layer would. */
+extern Spr G_PLANET;
+extern Spr G_STREAK[2];
+
 /* translucent panel bank: 4 colour bands of 224 rows, 960 px wide.
  * Draw a panel with bb_alpha(UI_TEX + band*224*UI_TEX_STRIDE + x*2, ...). */
 #define UI_TEX_BASE    0x05200000u

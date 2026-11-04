@@ -59,6 +59,13 @@ static Foe   fo[MAX_FOE];   static int nfo;
 static Part  pt[MAX_PART];  static int npt;
 static Star  st[MAX_STAR];
 
+/* Speed streaks: the cheapest way to make a static background read as motion.
+ * Ten 3x34 sprites cost about as much as one enemy, and they only ever move
+ * straight down, so the parallax stays believable without another layer. */
+#define MAX_STK  10
+typedef struct { int16_t x, y; uint8_t k; uint8_t vy; } Stk;
+static Stk stk[MAX_STK];
+
 static int px, py, pvx;
 static int php, pmaxhp, plives;
 static int pinv, pdead, pshot_cd, pdie_t;
@@ -134,16 +141,20 @@ static int icos(int ang)
 static int isin(int ang) { return icos(ang - 64); }
 
 /* ------------------------------------------------------------------- sky */
-static uint16_t bg_band[24];
+/* 48 bands instead of 24: 30 px steps on a dark blue gradient show as visible
+ * stripes on a 720p panel, 15 px steps do not, and 24 extra fILL tasks of
+ * 1280x15 are still cheaper than a single full-screen copy. */
+#define N_BG_BAND 48
+static uint16_t bg_band[N_BG_BAND];
 
 static void make_sky(void)
 {
     /* almost black, with a faint blue haze towards the bottom */
-    for (int i = 0; i < 24; i++) {
-        int y = i * (SCREEN_H / 24) + 15;
-        int r = (y * 1) / SCREEN_H;
-        int g = 1 + (y * 3) / SCREEN_H;
-        int b = 5 + (y * 11) / SCREEN_H;
+    for (int i = 0; i < N_BG_BAND; i++) {
+        int y = i * (SCREEN_H / N_BG_BAND) + 7;
+        int r = (y * 2) / SCREEN_H;
+        int g = 1 + (y * 4) / SCREEN_H;
+        int b = 6 + (y * 13) / SCREEN_H;
         bg_band[i] = (uint16_t)((r << 11) | (g << 5) | b);
     }
 }
@@ -156,6 +167,12 @@ void game_init(void)
         st[i].y = (int16_t)rr(0, SCREEN_H - 8);
         st[i].kind = (uint8_t)(i & 3);
         st[i].vy = (int16_t)(((i & 3) == 0) ? 5 : (((i & 3) == 1) ? 12 : (((i & 3) == 2) ? 24 : 40)));
+    }
+    for (int i = 0; i < MAX_STK; i++) {
+        stk[i].x = (int16_t)rr(0, SCREEN_W - 8);
+        stk[i].y = (int16_t)rr(0, SCREEN_H);
+        stk[i].k = (uint8_t)(i & 1);
+        stk[i].vy = (uint8_t)(i & 1 ? 16 : 26);
     }
     game_reset();
 }
@@ -702,6 +719,13 @@ void game_update(void)
             st[i].x = (int16_t)rr(0, SCREEN_W - 8);
         }
     }
+    for (i = 0; i < MAX_STK; i++) {
+        stk[i].y = (int16_t)(stk[i].y + stk[i].vy);
+        if (stk[i].y > SCREEN_H + 4) {
+            stk[i].y = (int16_t)-40;
+            stk[i].x = (int16_t)rr(0, SCREEN_W - 8);
+        }
+    }
 
     if (gameover_t > 0) {
         update_particles();
@@ -831,14 +855,19 @@ static char *s_str(char *p, const char *s)
 
 static void bg_fills(void)
 {
-    for (int i = 0; i < 24; i++)
-        bb_fill(0, i * 30, SCREEN_W, 30, bg_band[i], 0);
-    ntask += 24;
+    for (int i = 0; i < N_BG_BAND; i++)
+        bb_fill(0, i * 15, SCREEN_W, 15, bg_band[i], 0);
+    ntask += N_BG_BAND;
 }
 
 static void draw_bg(void)
 {
     bg_fills();
+
+    /* Furthest first: planet, then two nebula banks, then the star layers, then
+     * the speed streaks.  Six depth cues out of six tasks plus the sprites that
+     * were always there - the parallax is in the ordering, not in extra work. */
+    blit(&G_PLANET, 940, 168);
 
     blit(&G_NEB[0], 30, (int)((g_frame * 1 + 120) % (SCREEN_H + 500)) - 500);
     blit(&G_NEB[1], 830, (int)((g_frame * 2 + 700) % (SCREEN_H + 500)) - 500);
@@ -847,6 +876,8 @@ static void draw_bg(void)
         const Spr *s = &G_STAR[st[i].kind];
         blit(s, st[i].x, st[i].y);
     }
+    for (int i = 0; i < MAX_STK; i++)
+        blit(&G_STREAK[stk[i].k], stk[i].x, stk[i].y);
 }
 
 static void draw_world(void)
@@ -870,7 +901,7 @@ static void draw_world(void)
     if (!pdead) {
         int bx = PX(px) + sx, by = PX(py) + sy;
         if (pinv == 0 || (pinv & 4)) {
-            blit(&G_FLAME[(g_frame >> 2) % 3], bx - G_FLAME[0].w / 2, by + 20);
+            blit(&G_FLAME[(g_frame >> 2) % 3], bx - G_FLAME[0].w / 2, by + 40);
             const Spr *s = &G_SHIP[(pvx < -16) ? SHIP_LEFT : ((pvx > 16) ? SHIP_RIGHT : SHIP_IDLE)];
             if (pinv > 0 && (pinv & 2)) s = &G_SHIP[SHIP_HIT];
             blit(s, bx - s->w / 2, by - s->h / 2);
