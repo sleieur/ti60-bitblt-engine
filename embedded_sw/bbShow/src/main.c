@@ -20,6 +20,7 @@
 #include "fb_driver.h"
 #include "bitblt_driver.h"
 #include "game.h"
+#include "art.h"
 
 /* ------------------------------------------------------------------ timing */
 /* Softwar rasterising budget per frame.
@@ -59,10 +60,12 @@
  * so the live dwell only has to cover one clean take of the effect, not the
  * narration.
  *
- * 56 + 50 + 10 = 116 s, so the whole round ends inside two minutes even if the
- * GAME fail-safe has to fire.  Then it wraps to scene 2 (the title card is
- * skipped, it belongs at the start of a take only). */
-static const uint8_t SCENE_SEC[N_SCENE] = { 7, 7, 7, 7, 7, 7, 50, 10, 7, 7 };
+ * 56 + 50 + 30 = 136 s, so the whole round ends inside two minutes and a half
+ * even if the GAME fail-safe has to fire.  The survivors scene is the one place
+ * that needs longer than a card: six stages at 4.5 s each is 27 s, and the whole
+ * point of the scene is to watch the load climb, so it cannot be cut short.
+ * Then it wraps to scene 2 (the title card is skipped). */
+static const uint8_t SCENE_SEC[N_SCENE] = { 7, 7, 7, 7, 7, 7, 50, 30, 7, 7 };
 
 /* Board keys.
  *
@@ -153,6 +156,8 @@ static void prerender_cpu_half(void)
     cpu_publish();
     cpu_ready = 1;
 }
+
+static void scene_next(void);
 
 static void goto_scene(int s)
 {
@@ -335,22 +340,42 @@ static void poll_uart(void)
              * In the IMAGES scene the same key advances the picture instead. */
             if (cur_scene == SCENE_IMAGES) { images_next(); continue; }
             auto_cycle = 0;
-            int n = (cur_scene + 1) % N_SCENE;
-            if (n == SCENE_INTRO) n = SCENE_SPLIT_FILL;   /* skip the intro on wrap */
-            goto_scene(n);
+            scene_next();                  /* same order as the auto cycle */
         }
     }
 }
 
-/* Advance to the next scene in the presentation order, wrapping to scene 2 so a
- * looping demo never returns to the title card.  Shared by the auto cycle, the
- * board switches and the "boss down" hand-off at the end of STARFALL, so all
+/* Presentation order, independent of the scene ids.
+ *
+ * The survivors stress test opens the take and STARFALL follows it, because those
+ * are the two scenes worth watching first: the horde shows what the engine can
+ * carry, the boss fight shows what it is for.  Everything else follows.  Keeping
+ * the order in a table instead of renumbering the scenes means the on-screen menu
+ * numbers stay the ones people already know.
+ *
+ * Wrapping returns to the survivors scene, so a looping demo never lands on the
+ * title card. */
+static const uint8_t SCENE_ORDER[N_SCENE] = {
+    SCENE_LIMIT,        /* 8  survivors horde  */
+    SCENE_DANMAKU,      /* 7  STARFALL         */
+    SCENE_INTRO,        /* 1  title menu       */
+    SCENE_SPLIT_FILL,   /* 2                   */
+    SCENE_SPLIT_COPY,   /* 3                   */
+    SCENE_IMAGES,       /* 4                   */
+    SCENE_ALPHA,        /* 5                   */
+    SCENE_KEY,          /* 6                   */
+    SCENE_CHECK,        /* 9                   */
+    SCENE_SUMMARY       /* 0                   */
+};
+
+/* Advance to the next scene in the presentation order.  Shared by the auto cycle,
+ * the board switches and the "boss down" hand-off at the end of STARFALL, so all
  * three follow the same order. */
 static void scene_next(void)
 {
-    int n = cur_scene + 1;
-    if (n >= N_SCENE) n = SCENE_SPLIT_FILL;
-    goto_scene(n);
+    int i = 0;
+    while (i < N_SCENE - 1 && SCENE_ORDER[i] != cur_scene) i++;
+    goto_scene(SCENE_ORDER[(i + 1) % N_SCENE]);
 }
 
 /* =================================================================== main */
@@ -386,6 +411,9 @@ void main(void)
     bsp_printf("  images, sprites and glyphs done (%d ms)\r\n",
                (int)((clint_getTime(BSP_CLINT) - t0) / TICKS_PER_MS));
     bsp_printf("frame size %x  stride %d\r\n", (int)fb_frame_size(), (int)fb_stride());
+    /* Reuses main's printf instead of pulling a second one into art.c: adding the
+     * call there cost 1.2 KB of the 124 KB region. */
+    bsp_printf("art source: %s\r\n", art_pack_loaded ? "hand-painted pack" : "procedural");
 
     game_init();
 
