@@ -237,6 +237,26 @@ static void ink_outline(Spr *s, int cell, uint16_t col)
         if (b[i] == 0x0001u) b[i] = col;
 }
 
+/* Anything within a hair of the key colour becomes exactly the key colour.
+ * The glossy orb shader fades out through magenta, so its faint outer cells sat
+ * one or two codes away from 0xF81F: not equal, so the key did not fire, and
+ * every bullet kept a pink halo.  Snapping the neighbourhood clears it without
+ * touching the bright core. */
+static void key_clean(Spr *s)
+{
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+    for (int i = 0; i < st * s->h; i++) {
+        uint16_t c = b[i];
+        if (c == MAG) continue;
+        int r = (c >> 11) & 31, g = (c >> 5) & 63, bl = c & 31;
+        /* magenta family, however the shader mixed it: red and blue both high,
+         * green near zero.  A narrow band around 0xF81F missed the halo the orb
+         * shader leaves at its outer cells. */
+        if (g <= 10 && r >= 22 && bl >= 12 && (r + bl) > 3 * g + 40) b[i] = MAG;
+    }
+}
+
 /* Every sprite that ends up on screen goes through the same three passes. */
 static void arcade(Spr *s, int cell)
 {
@@ -381,6 +401,7 @@ Spr G_STAR[4];
 Spr G_NEB[2];
 Spr G_PLANET;
 Spr G_STREAK[2];
+Spr G_BLOOM[2];
 
 /* 4x4 ordered dither, used to fake a soft edge with a 1-bit key */
 static const uint8_t DITH[4][4] = {
@@ -514,7 +535,10 @@ static void build_bullets(void)
         for (int x = 0; x < 12; x++) {
             int dx = x - 5, dy = y - 11;
             if (dx * dx + (dy * dy) / 2 <= 12) {
-                uint16_t c = (y < 8) ? 0xFFFFu : ((y < 18) ? 0xFC1Fu : 0xE01Fu);
+                /* Tail was magenta-pink (0xFC1F), which is one step from the key
+                 * colour and left a visible pink halo around every bullet.  Amber
+                 * reads as heat and keys cleanly. */
+                uint16_t c = (y < 8) ? 0xFFFFu : ((y < 18) ? 0xFE60u : 0xE300u);
                 pset(&G_BUL[BK_RICE], x, y, c);
             }
         }
@@ -619,12 +643,94 @@ static void build_stars(void)
     pset(&G_STAR[3], 3, 3, 0xFFFFu);
 }
 
-static void build_nebula(void)
+/* --------------------------------------------------------------- nebulae ---
+ * A nebula is the one place where "more octaves" is free: it is baked once at
+ * boot into a 256x256 sprite, so the cost of the maths never reaches the frame
+ * budget.  Three octaves of value noise, ridged, mapped through a four-step
+ * ramp - that is what turns a radial gradient into something with structure.
+ */
+static uint32_t nseed = 0x9E3779B9u;
+static uint32_t nrand(void)
 {
-    G_NEB[0] = spr_new(256, 256, MAG);
-    glow_blob(&G_NEB[0], 0x0804u, 0x300Cu, 7);
-    G_NEB[1] = spr_new(256, 256, MAG);
-    glow_blob(&G_NEB[1], 0x0421u, 0x108Au, 21);
+    nseed ^= nseed << 13; nseed ^= nseed >> 17; nseed ^= nseed << 5;
+    return nseed;
+}
+
+static uint16_t lerp565(uint16_t a, uint16_t b, int t)
+{
+    int ar = (a >> 11) & 31, ag = (a >> 5) & 63, ab = a & 31;
+    int br = (b >> 11) & 31, bg = (b >> 5) & 63, bb = b & 31;
+    int r = ar + ((br - ar) * t) / 256;
+    int g = ag + ((bg - ag) * t) / 256;
+    int bl = ab + ((bb - ab) * t) / 256;
+    return (uint16_t)((r << 11) | (g << 5) | bl);
+}
+
+/* hash noise on a lattice of `period` cells, softened with a second fetch so
+ * the lattice never shows up as a visible grid */
+static int onoise(int x, int y, int period, uint32_t salt)
+{
+    int gx = x * 64 / period, gy = y * 64 / period;
+    uint32_t h = (uint32_t)(gx * 73856093u ^ gy * 19349663u ^ salt);
+    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+    int v = (int)(h & 255);
+    /* soften with a second fetch so the lattice does not show as a grid */
+    h = (uint32_t)(gx * 83492791u ^ gy * 2654435761u ^ (salt + 7u));
+    h ^= h >> 11; h *= 0x27d4eb2du; h ^= h >> 15;
+    int v2 = (int)(h & 255);
+    return (v * 3 + v2) / 4;
+}
+
+static void build_nebula(int idx, uint32_t salt, uint16_t inner, uint16_t mid,
+                         uint16_t outer, int cx, int cy, int radius)
+{
+    Spr *s = &G_NEB[idx];
+    *s = spr_new(256, 256, MAG);
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+
+    for (int y = 0; y < 256; y++) {
+        for (int x = 0; x < 256; x++) {
+            int dx = x - cx, dy = y - cy;
+            int d2 = dx * dx + dy * dy;
+            if (d2 > radius * radius) continue;
+            /* radial falloff, then ridged noise on top */
+            int rad = 255 - (isqrt_i(d2) * 255) / radius;
+            if (rad <= 0) continue;
+            int n = onoise(x, y, 64, salt) * 3 + onoise(x, y, 24, salt + 13) * 2
+                    + onoise(x, y, 8, salt + 29);
+            n = n / 6;                       /* 0..255 */
+            /* The noise has to *own* the edge: any term proportional to the
+             * radius alone reproduces a circle no matter how it is faded.  So the
+             * shape is noise-gated first (cells below the gate simply do not
+             * exist) and the radius only modulates the brightness. */
+            int gate = n - (255 - rad);
+            if (gate < 0) continue;
+            int v = (gate * 3) / 4 + rad / 3;
+            if (v < 8) continue;
+            if (v > 240) v = 240;
+
+            /* Density dithering instead of a solid disc: keep the cell only if a
+             * fixed per-cell threshold falls inside the density.  The result is
+             * a cloud of dots whose density follows the noise, which is how you
+             * fake alpha with a 1-bit key. */
+            int hash = ((x * 12289 + y * 3079) ^ (x * y)) & 255;
+            if (hash > v + 40) continue;
+            if (hash > v && ((x ^ y) & 1)) continue;
+
+            uint16_t c;
+            if (v < 70)       c = lerp565(outer, mid, v * 3);
+            else if (v < 150) c = lerp565(mid, inner, (v - 70) * 3);
+            else              c = lerp565(inner, 0xFFFFu, (v - 150) * 4);
+            b[y * st + x] = c;
+        }
+    }
+}
+
+static void build_nebulae(void)
+{
+    build_nebula(0, 0x51A3u, 0xFF5Fu, 0xA81Fu, 0x3808u, 128, 128, 126);
+    build_nebula(1, 0x7C1Du, 0x2FFFu, 0x0C7Fu, 0x0421u, 96, 150, 118);
 }
 
 /* A distant planet: the only thing in the scene that does not move.  It is
@@ -635,7 +741,10 @@ static void build_planet(void)
     /* Muted gas-giant bands.  The first attempt used magenta and white, which
      * after quantisation looked like a beach ball; a planet has to sit behind
      * the action, not compete with it. */
-    const uint16_t band[5] = { 0x18C6u, 0x2968u, 0x31AAu, 0x39EBu, 0x2968u };
+    /* Brighter, warmer than the first pass: at this size the planet has to read
+     * as a lit sphere hanging in the dark, and a near-black one just reads as a
+     * hole in the starfield. */
+    const uint16_t band[5] = { 0x6B4Du, 0x8C71u, 0x9CF3u, 0xAD55u, 0x7BEFu };
     Spr *s = &G_PLANET;
     int R = 150, cx = 180, cy = 180;
     *s = spr_new(360, 360, MAG);
@@ -664,7 +773,40 @@ static void build_planet(void)
         pset(s, cx - hw, y, 0x9FFFu);
         pset(s, cx - hw + 1, y, 0x3E7Fu);
     }
-    arcade(s, 3);
+    /* No ink outline here: an outline on a 360 px disc quantises into a dotted
+     * white halo, which looked like a stray selection marquee.  The planet gets
+     * its edge from the terminator instead - it is already dark on the right. */
+    pixelate(s, 3);
+}
+
+/* A kill has to *flash* before it scatters, otherwise the debris just appears.
+ * Bloom is a white core with a dithered halo, so it stays a KEY sprite and
+ * costs no destination reads. */
+static void build_bloom(int idx, int size, uint16_t mid)
+{
+    Spr *s = &G_BLOOM[idx];
+    *s = spr_new(size, size, MAG);
+    int c = size / 2;
+    int st = s->stride / 2;
+    uint16_t *b = A(s->addr);
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++) {
+            int dx = x - c, dy = y - c;
+            int d2 = dx * dx + dy * dy;
+            int r2 = c * c;
+            if (d2 > r2) continue;
+            int d = (isqrt_i(d2 * 1000 / (r2 ? r2 : 1)));     /* 0 centre .. 31 rim */
+            if (d > 30) continue;
+            uint16_t col;
+            if (d < 6)        col = 0xFFFFu;
+            else if (d < 12)  col = lerp565(0xFFFFu, mid, (d - 6) * 42);
+            else              col = lerp565(mid, 0x0000u, (d - 12) * 14);
+            /* dissolve outwards: every other cell at 50 %, three of four at the rim */
+            int keep = (d < 12) ? 1 : ((d < 20) ? (((x + y) & 1) == 0)
+                                                : (((x * 3 + y * 5) & 3) == 0));
+            if (!keep) continue;
+            b[y * st + x] = col;
+        }
 }
 
 static void build_streaks(void)
@@ -697,8 +839,10 @@ void art_build(void)
     build_bullets();
     build_fx();
     build_stars();
-    build_nebula();
+    build_nebulae();
     build_planet();
+    build_bloom(0, 96, 0xFFE0u);      /* foe pop: warm white */
+    build_bloom(1, 240, 0xFEA0u);     /* boss core: amber */
     build_streaks();
     build_ui_texture();
 
@@ -725,4 +869,15 @@ void art_build(void)
      * smooth glossy orb is what the eye can track in a dense pattern, and it
      * sits next to the chunky ships the way arcade sprites and glow hardware
      * always did. */
+
+    for (int i = 0; i < BK_N; i++) key_clean(&G_BUL[i]);
+    key_clean(&G_PB[PB_NEEDLE]);
+    key_clean(&G_PB[PB_BALL]);
+    for (int i = 0; i < 6; i++) key_clean(&G_BOOM[i]);
+    for (int i = 0; i < 3; i++) key_clean(&G_RING[i]);
+    key_clean(&G_NEB[0]);
+    key_clean(&G_NEB[1]);
+    key_clean(&G_PLANET);
+    for (int i = 0; i < 2; i++) key_clean(&G_BLOOM[i]);
+    for (int i = 0; i < 2; i++) key_clean(&G_STREAK[i]);
 }

@@ -25,10 +25,13 @@
 
 /* ------------------------------------------------------------------ config */
 #define MAX_EBUL   1100
-#define MAX_PBUL   80
-#define MAX_FOE    24
-#define MAX_PART   120
-#define MAX_STAR   180
+/* RAM headroom matters: the art pass pushed .text up and the region is 124 KB.
+ * A pixel-art pass costs code, so the pools were trimmed to their real high
+ * water marks (measured on the busiest wave) to keep 4 KB of stack free. */
+#define MAX_PBUL   64
+#define MAX_FOE    20
+#define MAX_PART   96
+#define MAX_STAR   160
 
 #define PLAY_TOP   72
 #define PLAY_L     26

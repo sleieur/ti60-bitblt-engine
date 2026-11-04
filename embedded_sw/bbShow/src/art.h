@@ -60,6 +60,10 @@ extern Spr G_NEB[2];
 extern Spr G_PLANET;
 extern Spr G_STREAK[2];
 
+/* Soft white bloom, drawn underneath a kill so the frame flashes before the
+ * debris.  Two sizes: one for a foe, one for the boss core. */
+extern Spr G_BLOOM[2];
+
 /* translucent panel bank: 4 colour bands of 224 rows, 960 px wide.
  * Draw a panel with bb_alpha(UI_TEX + band*224*UI_TEX_STRIDE + x*2, ...). */
 #define UI_TEX_BASE    0x05200000u
